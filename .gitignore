@@ -1,0 +1,13 @@
+.DS_Store
+.build/
+dist/
+DerivedData/
+*.xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+.swiftpm/
+.superpowers/
+.codex/logs/
+Resources/MDifyIcon.iconset/
+mdify-icon-clean-markdown-v2.png
+*.log
+.env
