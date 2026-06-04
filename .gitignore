@@ -7,6 +7,9 @@ DerivedData/
 .swiftpm/
 .superpowers/
 .codex/logs/
+.pytest_cache/
+__pycache__/
+*.pyc
 Resources/MDifyIcon.iconset/
 mdify-icon-clean-markdown-v2.png
 *.log

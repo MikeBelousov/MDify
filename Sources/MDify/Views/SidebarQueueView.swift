@@ -50,8 +50,8 @@ struct SidebarQueueView: View {
     private var environmentIcon: String {
         switch appState.environmentPhase {
         case .ready: "checkmark.circle"
-        case .missingPython, .failed: "exclamationmark.triangle"
-        case .installing, .checking: "gearshape.2"
+        case .missingWorker, .failed: "exclamationmark.triangle"
+        case .checkingWorker: "gearshape.2"
         case .idle: "circle"
         }
     }

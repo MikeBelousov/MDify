@@ -1,0 +1,1 @@
+"""MDify Lite worker."""

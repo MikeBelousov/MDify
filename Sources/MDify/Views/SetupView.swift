@@ -5,8 +5,24 @@ struct SetupView: View {
     let message: String
     let primaryTitle: String
     let primaryAction: () -> Void
-    let secondaryTitle: String
-    let secondaryAction: () -> Void
+    let secondaryTitle: String?
+    let secondaryAction: (() -> Void)?
+
+    init(
+        title: String,
+        message: String,
+        primaryTitle: String,
+        primaryAction: @escaping () -> Void,
+        secondaryTitle: String? = nil,
+        secondaryAction: (() -> Void)? = nil
+    ) {
+        self.title = title
+        self.message = message
+        self.primaryTitle = primaryTitle
+        self.primaryAction = primaryAction
+        self.secondaryTitle = secondaryTitle
+        self.secondaryAction = secondaryAction
+    }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -23,7 +39,9 @@ struct SetupView: View {
             HStack {
                 Button(primaryTitle, action: primaryAction)
                     .buttonStyle(.borderedProminent)
-                Button(secondaryTitle, action: secondaryAction)
+                if let secondaryTitle, let secondaryAction {
+                    Button(secondaryTitle, action: secondaryAction)
+                }
             }
         }
         .padding(32)

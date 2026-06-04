@@ -1,0 +1,35 @@
+{
+  "version": "rapidocr-3.8.0-models",
+  "files": [
+    {
+      "path": "det/multi_PP-OCRv3_det_mobile.onnx",
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv4/det/multi_PP-OCRv3_det_mobile.onnx",
+      "sha256": "5475c6c7f4d84a6c4f32241b487435d59f126a40c023387af99732258844cdc3",
+      "license": "RapidOCR model license"
+    },
+    {
+      "path": "cls/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+      "sha256": "e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c",
+      "license": "RapidOCR model license"
+    },
+    {
+      "path": "rec/cyrillic_PP-OCRv5_rec_mobile.onnx",
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/rec/cyrillic_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "90f761b4bfcce0c8c561c0cb5c887b0971d3ec01c32164bdf7374a35b0982711",
+      "license": "RapidOCR model license"
+    },
+    {
+      "path": "rec/latin_PP-OCRv5_rec_mobile.onnx",
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/rec/latin_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "b20bd37c168a570f583afbc8cd7925603890efbcdc000a59e22c269d160b5f5a",
+      "license": "RapidOCR model license"
+    },
+    {
+      "path": "fonts/cyrillic.ttf",
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/resources/fonts/cyrillic.ttf",
+      "sha256": "85180753fa255615b5f5b436c00b203567fb87a271a5af9dd095d43a429c53eb",
+      "license": "RapidOCR model license"
+    }
+  ]
+}
