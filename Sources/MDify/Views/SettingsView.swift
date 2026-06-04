@@ -8,21 +8,24 @@ struct SettingsView: View {
         Form {
             Section("Environment") {
                 LabeledContent("Status", value: appState.environmentPhase.title)
-                LabeledContent("MarkItDown", value: appState.markitdownExecutableURL.path)
-                if case .ready(let python, let state) = appState.environmentPhase {
-                    LabeledContent("Python", value: python.executableURL.path)
-                    LabeledContent("Python Version", value: python.version.description)
-                    LabeledContent("Architecture", value: python.architecture.rawValue)
-                    LabeledContent("Library", value: libraryDescription(state))
+                switch appState.environmentPhase {
+                case .ready(let status), .missingWorker(let status):
+                    LabeledContent("Variant", value: status.kind.displayName)
+                    LabeledContent("Worker", value: status.executableURL.path)
+                    LabeledContent("Executable", value: status.isExecutable ? "Yes" : "No")
+                    if status.kind == .ocr {
+                        LabeledContent("OCR Models", value: status.modelsPresent ? "Present" : "Missing")
+                        LabeledContent("Model Manifest", value: status.modelManifestURL?.path ?? "Missing")
+                        LabeledContent("Model Version", value: status.modelManifestVersion ?? "Unknown")
+                    }
+                default:
+                    EmptyView()
                 }
             }
 
             Section("Actions") {
-                Button("Recheck Environment") {
+                Button("Recheck Worker") {
                     Task { await appState.bootstrap() }
-                }
-                Button("Download Python") {
-                    appState.openPythonDownload()
                 }
             }
 
@@ -33,13 +36,5 @@ struct SettingsView: View {
             }
         }
         .padding()
-    }
-
-    private func libraryDescription(_ state: MarkItDownInstallState) -> String {
-        switch state {
-        case .missing: "Missing"
-        case .installed(let version): "Installed \(version)"
-        case .wrongVersion(let version): "Wrong version \(version)"
-        }
     }
 }

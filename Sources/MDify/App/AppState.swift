@@ -7,19 +7,17 @@ import MDifyCore
 final class AppState: ObservableObject {
     enum EnvironmentPhase: Equatable {
         case idle
-        case checking
-        case ready(PythonCandidate, MarkItDownInstallState)
-        case installing(String)
-        case missingPython
+        case checkingWorker
+        case ready(WorkerBundleStatus)
+        case missingWorker(WorkerBundleStatus)
         case failed(String)
 
         var title: String {
             switch self {
             case .idle: "Not checked"
-            case .checking: "Checking Python"
+            case .checkingWorker: "Checking Worker"
             case .ready: "Ready"
-            case .installing: "Installing MarkItDown"
-            case .missingPython: "Python required"
+            case .missingWorker: "Worker missing"
             case .failed: "Setup failed"
             }
         }
@@ -30,17 +28,17 @@ final class AppState: ObservableObject {
     @Published var setupLog = ""
     @Published var importSummary: String?
 
-    let conversionService = ConversionService()
-    private let folderImportService = FolderImportService()
+    let conversionService: ConversionService
+    private let folderImportService: FolderImportService
     private let outputRevealPolicy = OutputRevealPolicy()
+    private let workerResolver: WorkerBundleResolver
 
-    private let paths = AppPaths()
-    private let runner = ProcessRunner()
-    private lazy var environmentManager = PythonEnvironmentManager(paths: paths, runner: runner)
-    private lazy var installer = MarkItDownInstaller(paths: paths, runner: runner)
-
-    var markitdownExecutableURL: URL {
-        paths.markitdownExecutableURL
+    init(workerResolver: WorkerBundleResolver = WorkerBundleResolver()) {
+        self.workerResolver = workerResolver
+        self.conversionService = ConversionService(workerClient: workerResolver.makeNativeRoutingClient())
+        self.folderImportService = FolderImportService(
+            policy: ConvertibleFilePolicy(workerKind: workerResolver.workerKind)
+        )
     }
 
     func bootstrapIfNeeded() async {
@@ -49,32 +47,15 @@ final class AppState: ObservableObject {
     }
 
     func bootstrap() async {
-        environmentPhase = .checking
+        environmentPhase = .checkingWorker
         setupLog = ""
 
-        guard let python = await environmentManager.discoverPython() else {
-            environmentPhase = .missingPython
-            setupLog = "Install Python 3.10-3.13 from python.org or Homebrew, then click Recheck."
-            return
-        }
-
-        do {
-            let venvResult = try await environmentManager.createVirtualEnvironment(using: python)
-            setupLog += venvResult.stdout + venvResult.stderr + "\n"
-
-            let state = await installer.checkInstalledVersion()
-            switch state {
-            case .installed:
-                environmentPhase = .ready(python, state)
-            case .missing, .wrongVersion:
-                environmentPhase = .installing(setupLog)
-                let installLog = try await installer.install()
-                setupLog += installLog
-                environmentPhase = .ready(python, await installer.checkInstalledVersion())
-            }
-        } catch {
-            environmentPhase = .failed(error.localizedDescription)
-            setupLog += "\n\(error.localizedDescription)"
+        let status = workerResolver.status()
+        setupLog = setupDescription(for: status)
+        if status.isExecutable && status.modelsPresent {
+            environmentPhase = .ready(status)
+        } else {
+            environmentPhase = .missingWorker(status)
         }
     }
 
@@ -140,10 +121,7 @@ final class AppState: ObservableObject {
         }
         await bootstrapIfNeeded()
         guard case .ready = environmentPhase else { return }
-        await conversionService.convertAll(
-            outputDirectory: outputDirectory,
-            markitdownExecutable: markitdownExecutableURL
-        )
+        await conversionService.convertAll(outputDirectory: outputDirectory)
     }
 
     func copySelectedMarkdown() {
@@ -175,12 +153,6 @@ final class AppState: ObservableObject {
     func openOutputFolder(for item: ConversionItem) {
         guard canRevealOutput(for: item), let outputURL = item.outputURL else { return }
         NSWorkspace.shared.open(outputURL.deletingLastPathComponent())
-    }
-
-    func openPythonDownload() {
-        if let url = URL(string: "https://www.python.org/downloads/macos/") {
-            NSWorkspace.shared.open(url)
-        }
     }
 
     private func importFolder(_ folderURL: URL) {
@@ -236,5 +208,21 @@ final class AppState: ObservableObject {
     private func isDirectory(_ url: URL) -> Bool {
         var isDirectory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
+
+    private func setupDescription(for status: WorkerBundleStatus) -> String {
+        var lines = [
+            "Worker kind: \(status.kind.rawValue)",
+            "Worker path: \(status.executableURL.path)",
+            "Worker executable: \(status.isExecutable ? "yes" : "no")"
+        ]
+        if status.kind == .ocr {
+            lines.append("OCR models: \(status.modelsPresent ? "present" : "missing")")
+            lines.append("OCR model manifest: \(status.modelManifestURL?.path ?? "missing")")
+            if let version = status.modelManifestVersion {
+                lines.append("OCR model version: \(version)")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 }

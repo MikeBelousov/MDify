@@ -8,25 +8,21 @@ struct DetailView: View {
     var body: some View {
         Group {
             switch appState.environmentPhase {
-            case .missingPython:
+            case .missingWorker(let status):
                 SetupView(
-                    title: "Python 3.10+ Required",
-                    message: "MDify installs MarkItDown automatically, but it needs a compatible Python first.",
-                    primaryTitle: "Download Python",
-                    primaryAction: appState.openPythonDownload,
-                    secondaryTitle: "Recheck",
-                    secondaryAction: { Task { await appState.bootstrap() } }
+                    title: "Embedded Worker Missing",
+                    message: missingWorkerMessage(status),
+                    primaryTitle: "Recheck",
+                    primaryAction: { Task { await appState.bootstrap() } }
                 )
             case .failed(let message):
                 SetupView(
                     title: "Setup Failed",
                     message: message,
                     primaryTitle: "Recheck",
-                    primaryAction: { Task { await appState.bootstrap() } },
-                    secondaryTitle: "Download Python",
-                    secondaryAction: appState.openPythonDownload
+                    primaryAction: { Task { await appState.bootstrap() } }
                 )
-            case .checking, .installing:
+            case .checkingWorker:
                 ProgressView(appState.environmentPhase.title)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -38,5 +34,15 @@ struct DetailView: View {
                 }
             }
         }
+    }
+
+    private func missingWorkerMessage(_ status: WorkerBundleStatus) -> String {
+        if !status.isExecutable {
+            return "The \(status.kind.displayName) worker is not bundled at \(status.executableURL.path). Rebuild the app bundle."
+        }
+        if status.kind == .ocr && !status.modelsPresent {
+            return "The \(status.kind.displayName) worker is bundled, but OCR models are missing. Rebuild the OCR bundle with the model manifest."
+        }
+        return "The embedded worker bundle is incomplete. Rebuild the app bundle."
     }
 }

@@ -12,16 +12,13 @@ final class ConversionServiceTests: XCTestCase {
         try "hello".write(to: inputURL, atomically: true, encoding: .utf8)
 
         let service = ConversionService(
-            runner: MockRunner(results: [
-                "markitdown|sample.txt": ProcessResult(exitCode: 0, stdout: "# Hello\n", stderr: "")
+            workerClient: MockWorkerClient(behaviors: [
+                "sample.txt": .success("# Hello\n")
             ])
         )
 
         service.enqueue(files: [inputURL])
-        await service.convertAll(
-            outputDirectory: directory,
-            markitdownExecutable: URL(fileURLWithPath: "/usr/local/bin/markitdown")
-        )
+        await service.convertAll(outputDirectory: directory)
 
         XCTAssertEqual(service.items.first?.status, .succeeded)
         XCTAssertEqual(service.items.first?.markdownText, "# Hello\n")
@@ -40,16 +37,13 @@ final class ConversionServiceTests: XCTestCase {
         FileManager.default.createFile(atPath: inputURL.path, contents: Data())
 
         let service = ConversionService(
-            runner: MockRunner(results: [
-                "markitdown|broken.pdf": ProcessResult(exitCode: 2, stdout: "", stderr: "cannot parse")
+            workerClient: MockWorkerClient(behaviors: [
+                "broken.pdf": .failure("cannot parse", code: "CONVERSION_FAILED")
             ])
         )
 
         service.enqueue(files: [inputURL])
-        await service.convertAll(
-            outputDirectory: directory,
-            markitdownExecutable: URL(fileURLWithPath: "/usr/local/bin/markitdown")
-        )
+        await service.convertAll(outputDirectory: directory)
 
         XCTAssertEqual(service.items.first?.status, .failed)
         XCTAssertEqual(service.items.first?.errorMessage, "cannot parse")
@@ -113,8 +107,8 @@ final class ConversionServiceTests: XCTestCase {
         try "hello".write(to: inputURL, atomically: true, encoding: .utf8)
 
         let service = ConversionService(
-            runner: MockRunner(results: [
-                "markitdown|notes.txt": ProcessResult(exitCode: 0, stdout: "# Notes\n", stderr: "")
+            workerClient: MockWorkerClient(behaviors: [
+                "notes.txt": .success("# Notes\n")
             ])
         )
         _ = service.enqueue(folderScan: FolderScanResult(
@@ -124,10 +118,7 @@ final class ConversionServiceTests: XCTestCase {
             hasSubfolders: true
         ))
 
-        await service.convertAll(
-            outputDirectory: outputDirectory,
-            markitdownExecutable: URL(fileURLWithPath: "/usr/local/bin/markitdown")
-        )
+        await service.convertAll(outputDirectory: outputDirectory)
 
         let outputURL = outputDirectory.appendingPathComponent("Source/nested/notes.md")
         XCTAssertEqual(try String(contentsOf: outputURL, encoding: .utf8), "# Notes\n")

@@ -9,17 +9,29 @@ public struct ConvertibleFilePolicy: Sendable {
         self.supportedExtensions = Set(supportedExtensions.map { $0.lowercased() })
     }
 
+    public init(workerKind: WorkerKind) {
+        switch workerKind {
+        case .lite:
+            self.init(supportedExtensions: Self.liteExtensions)
+        case .ocr:
+            self.init(supportedExtensions: Self.ocrExtensions)
+        }
+    }
+
     public func isConvertibleFile(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
         return !ext.isEmpty && supportedExtensions.contains(ext)
     }
 
-    public static let defaultExtensions: Set<String> = [
+    public static let liteExtensions: Set<String> = [
         "pdf",
-        "docx", "doc", "pptx", "xlsx", "xls",
-        "html", "htm", "csv", "json", "xml", "txt", "md", "rtf",
-        "epub", "ipynb", "zip", "msg",
-        "jpg", "jpeg", "png", "gif", "bmp", "tif", "tiff", "webp",
-        "wav", "mp3", "m4a", "mp4", "mov"
+        "docx", "pptx", "xlsx", "xls",
+        "html", "htm", "csv", "json", "xml", "txt", "md",
+        "epub", "zip",
+        "jpg", "jpeg", "png", "bmp", "tif", "tiff", "webp"
     ]
+
+    public static let ocrExtensions: Set<String> = liteExtensions
+
+    public static let defaultExtensions: Set<String> = ocrExtensions
 }

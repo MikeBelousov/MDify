@@ -1,13 +1,28 @@
 # Third Party Notices
 
-MDify uses Microsoft MarkItDown and installs `markitdown[all]==0.1.6` into an
-app-owned Python virtual environment on the user's machine.
+MDify bundles Python workers built with PyInstaller. Runtime does not create a
+virtual environment, install packages, or download models on the user's machine.
 
-MarkItDown is distributed under the MIT License.
+## Lite Worker
 
-Python is distributed under the Python Software Foundation License.
+- Microsoft MarkItDown 0.1.6: MIT.
+- pdfminer.six 20251230: MIT.
+- PyInstaller 6.20.0: GPLv2-or-later with PyInstaller's bootloader exception.
 
-The optional dependencies installed by `markitdown[all]` include packages with
-permissive licenses such as MIT, BSD, Apache-2.0, and PSF. Release automation
-should regenerate a full dependency notice file from the locked environment
-before publishing binary releases.
+## OCR Worker
+
+The OCR worker includes all Lite worker dependencies plus:
+
+- RapidOCR 3.8.1: Apache-2.0.
+- ONNX Runtime 1.22.1: MIT.
+- pypdfium2 5.9.0: BSD-3-Clause, Apache-2.0, and dependency licenses.
+- Pillow 12.2.0: HPND-style Pillow license.
+- NumPy 2.4.6: BSD-3-Clause.
+- opencv-python 4.13.0.92 and opencv-python-headless 4.13.0.92: Apache-2.0.
+
+OCR model files are listed in `workers/ocr/model_manifest.json` with source URLs,
+sha256 hashes, and license notes. The OCR release embeds those files in
+`MDify OCR.app`; runtime never downloads them.
+
+Before publishing binary releases, regenerate a complete dependency notice from
+the locked worker environments.

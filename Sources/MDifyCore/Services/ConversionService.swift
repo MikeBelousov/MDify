@@ -7,15 +7,15 @@ public final class ConversionService: ObservableObject {
     @Published public var selectedID: UUID?
     @Published public private(set) var isConverting = false
 
-    private let runner: any ProcessRunning
+    private let workerClient: any WorkerConverting
     private let namer: OutputFileNamer
     private var shouldCancel = false
 
     public init(
-        runner: any ProcessRunning = ProcessRunner(),
+        workerClient: any WorkerConverting = WorkerBundleResolver().makeNativeRoutingClient(),
         namer: OutputFileNamer = OutputFileNamer()
     ) {
-        self.runner = runner
+        self.workerClient = workerClient
         self.namer = namer
     }
 
@@ -76,7 +76,7 @@ public final class ConversionService: ObservableObject {
         shouldCancel = true
     }
 
-    public func convertAll(outputDirectory: URL, markitdownExecutable: URL) async {
+    public func convertAll(outputDirectory: URL) async {
         guard !isConverting else { return }
         isConverting = true
         shouldCancel = false
@@ -97,44 +97,36 @@ public final class ConversionService: ObservableObject {
             } else {
                 outputURL = namer.markdownURL(for: item, in: outputDirectory, reservedRoots: &reservedRoots)
             }
-            await convert(itemID: item.id, outputURL: outputURL, markitdownExecutable: markitdownExecutable)
+            await convert(itemID: item.id, outputURL: outputURL)
         }
     }
 
-    private func convert(itemID: UUID, outputURL: URL, markitdownExecutable: URL) async {
+    private func convert(itemID: UUID, outputURL: URL) async {
         guard let item = items.first(where: { $0.id == itemID }) else { return }
         update(itemID) {
             $0.status = .converting
             $0.errorMessage = nil
             $0.outputURL = outputURL
-            $0.log = "Running MarkItDown for \(item.inputURL.path)"
+            $0.log = "Running embedded MDify worker for \(item.inputURL.path)"
         }
 
         do {
-            let result = try await runner.run(
-                executableURL: markitdownExecutable,
-                arguments: [item.inputURL.path],
-                environment: nil
-            )
-            guard result.exitCode == 0 else {
+            let response = try await workerClient.convert(inputURL: item.inputURL, outputURL: outputURL)
+            guard response.ok else {
                 update(itemID) {
                     $0.status = .failed
-                    $0.errorMessage = result.stderr.isEmpty ? "MarkItDown exited with code \(result.exitCode)." : result.stderr
-                    $0.log = result.stdout + result.stderr
+                    $0.errorMessage = response.message ?? response.errorCode ?? "Conversion failed."
+                    $0.log = response.errorCode ?? "Worker reported failure."
                 }
                 return
             }
 
-            try FileManager.default.createDirectory(
-                at: outputURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try result.stdout.write(to: outputURL, atomically: true, encoding: .utf8)
+            let markdown = try String(contentsOf: outputURL, encoding: .utf8)
             update(itemID) {
                 $0.status = .succeeded
-                $0.markdownText = result.stdout
+                $0.markdownText = markdown
                 $0.outputURL = outputURL
-                $0.log = result.stderr
+                $0.log = workerLog(response)
             }
         } catch {
             update(itemID) {
@@ -143,6 +135,18 @@ public final class ConversionService: ObservableObject {
                 $0.log = error.localizedDescription
             }
         }
+    }
+
+    private func workerLog(_ response: WorkerResponse) -> String {
+        var lines = [
+            "Worker: \(response.worker)",
+            "Engine: \(response.engine ?? "unknown")",
+            "OCR used: \(response.ocrUsed ? "yes" : "no")"
+        ]
+        if !response.warnings.isEmpty {
+            lines.append("Warnings: \(response.warnings.joined(separator: "; "))")
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func update(_ id: UUID, mutate: (inout ConversionItem) -> Void) {
