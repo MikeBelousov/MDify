@@ -6,7 +6,8 @@ DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 .swiftpm/
 .superpowers/
-.codex/logs/
+.codex/
+docs/superpowers/
 .pytest_cache/
 __pycache__/
 *.pyc

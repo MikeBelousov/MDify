@@ -1,3 +1,2 @@
 workers/ocr/models/**/*.onnx filter=lfs diff=lfs merge=lfs -text
 workers/ocr/models/**/*.ttf filter=lfs diff=lfs merge=lfs -text
-dist/*.zip filter=lfs diff=lfs merge=lfs -text

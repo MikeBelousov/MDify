@@ -1,22 +1,22 @@
 # MDify
 
-MDify is a native macOS app for converting local documents to Markdown. 
+MDify is a native desktop app for converting local documents to Markdown.
 
-The Lite worker uses Microsoft's MarkItDown
-library for supported document formats.
+The macOS app is built with SwiftUI. The Windows preview app is built with WPF.
+Both use bundled Python workers for document conversion.
 
 ## Install
 
+Download release assets from the latest GitHub release:
+
+https://github.com/MikeBelousov/MDify/releases/latest
+
 ### macOS
 
-Download the release asset for your Mac from the latest GitHub release:
-
-- [`MDify-Lite-AppleSilicon.zip`](dist/MDify-Lite-AppleSilicon.zip): smaller build for Apple Silicon Macs.
-- [`MDify-Lite-Intel.zip`](dist/MDify-Lite-Intel.zip): smaller build for Intel Macs.
-- [`MDify-OCR-AppleSilicon.zip`](dist/MDify-OCR-AppleSilicon.zip): larger build with local RapidOCR models for Apple Silicon Macs.
-- [`MDify-OCR-Intel.zip`](dist/MDify-OCR-Intel.zip): larger build with local RapidOCR models for Intel Macs.
-
-https://github.com/MikeBelousov/MDify/releases
+- `MDify-Lite-AppleSilicon.zip`: smaller build for Apple Silicon Macs.
+- `MDify-Lite-Intel.zip`: smaller build for Intel Macs.
+- `MDify-OCR-AppleSilicon.zip`: larger build with local RapidOCR models for Apple Silicon Macs.
+- `MDify-OCR-Intel.zip`: larger build with local RapidOCR models for Intel Macs.
 
 Unzip it, move the app to `/Applications`, and open it.
 
@@ -33,26 +33,29 @@ xattr -dr com.apple.quarantine "/Applications/MDify OCR.app"
 open -a "MDify OCR"
 ```
 
-## Requirements
-
-- macOS 14+
-- Windows 11 x64 for the Windows preview build.
-
 ### Windows Preview
 
-The Windows build is distributed as an unsigned preview installer:
+The Windows build is distributed as an unsigned preview for Windows 11 x64:
 
 - `MDifySetup.exe`: installs to `%LOCALAPPDATA%\Programs\MDify`.
 - `MDify-Windows-Portable.zip`: portable folder for debugging or manual testing.
-
-Download the artifact from the Windows Build GitHub Actions run or from a
-release asset when attached to a tagged release.
 
 Windows SmartScreen may warn because the preview executable is unsigned. Native
 Windows AI OCR is attempted first for images and scanned PDFs, and may need
 model preparation the first time it runs. If Windows AI OCR is unavailable,
 blocked by capability/model readiness, or returns weak text, MDify falls back to
 the bundled RapidOCR worker.
+
+Native OCR can be checked from the command line:
+
+```powershell
+MDify.Windows.exe --diagnose-native-ocr "C:\path\sample.png"
+```
+
+## Requirements
+
+- macOS 14+
+- Windows 11 x64 for the Windows preview build.
 
 ## Variants
 
@@ -66,6 +69,9 @@ the bundled RapidOCR worker.
 `MDify OCR.app` supports the same formats and adds RapidOCR fallback via
 ONNX Runtime and pypdfium2 when Apple Vision output is weak.
 
+`MDify.Windows.exe` uses the OCR policy by default. It supports the same input
+formats, uses Windows AI Text Recognizer when available, and falls back to the
+bundled RapidOCR worker when native OCR is unavailable or weak.
 
 ## Features
 
