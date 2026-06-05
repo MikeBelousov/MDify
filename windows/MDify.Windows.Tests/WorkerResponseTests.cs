@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MDify.Windows.Models;
+using Xunit;
 
 namespace MDify.Windows.Tests;
 

@@ -2,6 +2,7 @@ using System.IO;
 using MDify.Windows.Services;
 using MDify.Windows.Models;
 using MDify.Windows.Support;
+using Xunit;
 
 namespace MDify.Windows.Tests;
 
