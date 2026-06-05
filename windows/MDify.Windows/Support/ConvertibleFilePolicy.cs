@@ -75,6 +75,6 @@ public sealed class ConvertibleFilePolicy
             return string.Empty;
         }
 
-        return extension.StartsWith('.', StringComparison.Ordinal) ? extension : $".{extension}";
+        return extension.StartsWith(".", StringComparison.Ordinal) ? extension : $".{extension}";
     }
 }

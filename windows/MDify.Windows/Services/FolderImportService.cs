@@ -103,7 +103,7 @@ public sealed class FolderImportService
 
     private static bool ShouldSkipName(string name)
     {
-        return name.StartsWith('.', StringComparison.Ordinal)
+        return name.StartsWith(".", StringComparison.Ordinal)
             || string.Equals(name, "Thumbs.db", StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, "desktop.ini", StringComparison.OrdinalIgnoreCase);
     }
