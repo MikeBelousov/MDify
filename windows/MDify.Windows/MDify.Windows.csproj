@@ -14,6 +14,8 @@
     <AssemblyName>MDify.Windows</AssemblyName>
     <RootNamespace>MDify.Windows</RootNamespace>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AppxOSMinVersionReplaceManifestVersion>false</AppxOSMinVersionReplaceManifestVersion>
+    <AppxOSMaxVersionTestedReplaceManifestVersion>false</AppxOSMaxVersionTestedReplaceManifestVersion>
   </PropertyGroup>
 
   <ItemGroup>
