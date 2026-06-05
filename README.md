@@ -37,8 +37,7 @@ open -a "MDify OCR"
 
 The Windows build is distributed as an unsigned preview for Windows 11 x64:
 
-- `MDifySetup.exe`: installs to `%LOCALAPPDATA%\Programs\MDify`.
-- `MDify-Windows-Portable.zip`: portable folder for debugging or manual testing.
+- `MDifySetup.exe`: installs MDify to `%LOCALAPPDATA%\Programs\MDify`.
 
 Windows SmartScreen may warn because the preview executable is unsigned. Native
 Windows AI OCR is attempted first for images and scanned PDFs, and may need

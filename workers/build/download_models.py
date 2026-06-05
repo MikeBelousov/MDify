@@ -50,10 +50,21 @@ def ensure_file(entry: dict, *, download_missing: bool) -> bool:
 
     actual = sha256(path)
     if actual != expected:
-        print(f"sha256 mismatch for {path}", file=sys.stderr)
+        if not download_missing:
+            print(f"sha256 mismatch for {path}", file=sys.stderr)
+            print(f"expected: {expected}", file=sys.stderr)
+            print(f"actual:   {actual}", file=sys.stderr)
+            return False
+        print(f"sha256 mismatch for {path}; re-downloading", file=sys.stderr)
         print(f"expected: {expected}", file=sys.stderr)
         print(f"actual:   {actual}", file=sys.stderr)
-        return False
+        download(entry["url"], path)
+        actual = sha256(path)
+        if actual != expected:
+            print(f"sha256 mismatch for {path}", file=sys.stderr)
+            print(f"expected: {expected}", file=sys.stderr)
+            print(f"actual:   {actual}", file=sys.stderr)
+            return False
     print(f"ok: {entry['path']}")
     return True
 
