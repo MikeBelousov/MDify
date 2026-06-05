@@ -56,9 +56,9 @@ public sealed class OutputFileNamerTests : IDisposable
     public void GetMarkdownPath_PreservesFolderImportRelativePathUnderOutputRoot()
     {
         var item = new ConversionItem(
-            InputPath: Path.Combine(_root, "source", "nested", "notes.txt"),
-            SourceRootPath: Path.Combine(_root, "source"),
-            RelativeOutputPath: Path.Combine("nested", "notes.txt"));
+            inputPath: Path.Combine(_root, "source", "nested", "notes.txt"),
+            sourceRootPath: Path.Combine(_root, "source"),
+            relativeOutputPath: Path.Combine("nested", "notes.txt"));
 
         var result = new OutputFileNamer().GetMarkdownPath(item, _root);
 
