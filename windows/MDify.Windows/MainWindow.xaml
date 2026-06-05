@@ -1,0 +1,65 @@
+<Window x:Class="MDify.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MDify"
+        Height="720"
+        Width="1080"
+        MinHeight="520"
+        MinWidth="820"
+        AllowDrop="True">
+  <DockPanel>
+    <ToolBarTray DockPanel.Dock="Top">
+      <ToolBar>
+        <Button Content="Add Files" Margin="2" />
+        <Button Content="Add Folder" Margin="2" />
+        <Button Content="Output" Margin="2" />
+        <Separator />
+        <Button Content="Convert All" Margin="2" />
+        <Button Content="Cancel" Margin="2" />
+        <Separator />
+        <Button Content="Copy" Margin="2" />
+        <Button Content="Show in Explorer" Margin="2" />
+      </ToolBar>
+    </ToolBarTray>
+
+    <Grid Margin="12">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="2*" MinWidth="280" />
+        <ColumnDefinition Width="3*" MinWidth="360" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="3*" />
+        <RowDefinition Height="*" MinHeight="120" />
+      </Grid.RowDefinitions>
+
+      <GroupBox Header="Queue" Grid.RowSpan="2" Margin="0,0,12,0">
+        <ListView Name="QueueList">
+          <ListView.View>
+            <GridView>
+              <GridViewColumn Header="File" Width="220" />
+              <GridViewColumn Header="Status" Width="110" />
+            </GridView>
+          </ListView.View>
+        </ListView>
+      </GroupBox>
+
+      <GroupBox Header="Preview" Grid.Column="1" Margin="0,0,0,12">
+        <TextBox Name="PreviewText"
+                 AcceptsReturn="True"
+                 AcceptsTab="True"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto" />
+      </GroupBox>
+
+      <GroupBox Header="Log" Grid.Column="1" Grid.Row="1">
+        <TextBox Name="LogText"
+                 AcceptsReturn="True"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto" />
+      </GroupBox>
+    </Grid>
+  </DockPanel>
+</Window>
