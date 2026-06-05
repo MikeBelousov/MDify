@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace MDify.Windows.Models;
 
 public sealed record ConversionItem(
