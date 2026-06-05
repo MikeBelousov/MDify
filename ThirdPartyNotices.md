@@ -26,3 +26,14 @@ sha256 hashes, and license notes. The OCR release embeds those files in
 
 Before publishing binary releases, regenerate a complete dependency notice from
 the locked worker environments.
+
+## Windows Preview App
+
+- .NET runtime and WPF components bundled in the self-contained Windows publish:
+  MIT.
+- Microsoft Windows App SDK and Windows AI API projections: MIT.
+- Inno Setup installer tooling: Inno Setup license.
+
+The Windows installer embeds the same Lite and OCR Python worker dependencies
+listed above under `Workers/`. The Windows AI Text Recognizer model is provided
+by Windows when available; MDify does not redistribute that model.

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.0 - 2026-06-05
+
+- Added Windows 11 x64 preview app scaffold using C# WPF.
+- Added Windows worker execution, native Windows AI OCR routing, and RapidOCR fallback.
+- Added Windows PyInstaller worker packaging script.
+- Added Inno Setup installer and GitHub Actions Windows artifact workflow.
+- Added Windows preview documentation and dependency notices.
+
 ## v0.2.0 - 2026-06-02
 
 - Replaced user-machine Python setup with embedded PyInstaller workers.

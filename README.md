@@ -7,6 +7,8 @@ library for supported document formats.
 
 ## Install
 
+### macOS
+
 Download the release asset for your Mac from the latest GitHub release:
 
 - [`MDify-Lite-AppleSilicon.zip`](dist/MDify-Lite-AppleSilicon.zip): smaller build for Apple Silicon Macs.
@@ -34,6 +36,23 @@ open -a "MDify OCR"
 ## Requirements
 
 - macOS 14+
+- Windows 11 x64 for the Windows preview build.
+
+### Windows Preview
+
+The Windows build is distributed as an unsigned preview installer:
+
+- `MDifySetup.exe`: installs to `%LOCALAPPDATA%\Programs\MDify`.
+- `MDify-Windows-Portable.zip`: portable folder for debugging or manual testing.
+
+Download the artifact from the Windows Build GitHub Actions run or from a
+release asset when attached to a tagged release.
+
+Windows SmartScreen may warn because the preview executable is unsigned. Native
+Windows AI OCR is attempted first for images and scanned PDFs, and may need
+model preparation the first time it runs. If Windows AI OCR is unavailable,
+blocked by capability/model readiness, or returns weak text, MDify falls back to
+the bundled RapidOCR worker.
 
 ## Variants
 

@@ -11,6 +11,8 @@
     <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <AssemblyName>MDify.Windows</AssemblyName>
     <RootNamespace>MDify.Windows</RootNamespace>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>

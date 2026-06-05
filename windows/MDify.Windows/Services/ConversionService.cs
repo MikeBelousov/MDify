@@ -31,6 +31,25 @@ public sealed class ConversionService
         }
     }
 
+    public int EnqueueFolderScan(FolderScanResult folderScan)
+    {
+        var existing = Items.Select(item => item.InputPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var addedCount = 0;
+        foreach (var file in folderScan.Files)
+        {
+            if (existing.Add(file.Path))
+            {
+                Items.Add(new ConversionItem(
+                    file.Path,
+                    sourceRootPath: folderScan.RootPath,
+                    relativeOutputPath: file.RelativePath));
+                addedCount++;
+            }
+        }
+
+        return addedCount;
+    }
+
     public void ClearCompleted()
     {
         for (var index = Items.Count - 1; index >= 0; index--)
@@ -73,7 +92,7 @@ public sealed class ConversionService
             }
 
             var outputPath = _namer.ReserveMarkdownPath(item, outputDirectory, reservedPaths);
-            await ConvertItemAsync(index, item, outputPath, cancellationToken).ConfigureAwait(false);
+            await ConvertItemAsync(index, item, outputPath, cancellationToken);
         }
     }
 
@@ -93,8 +112,7 @@ public sealed class ConversionService
 
         try
         {
-            var response = await _workerClient.ConvertAsync(item.InputPath, outputPath, cancellationToken)
-                .ConfigureAwait(false);
+            var response = await _workerClient.ConvertAsync(item.InputPath, outputPath, cancellationToken);
             if (!response.Ok)
             {
                 Items[index] = Items[index] with
@@ -106,7 +124,7 @@ public sealed class ConversionService
                 return;
             }
 
-            var markdown = await File.ReadAllTextAsync(outputPath, CancellationToken.None).ConfigureAwait(false);
+            var markdown = await File.ReadAllTextAsync(outputPath, CancellationToken.None);
             Items[index] = Items[index] with
             {
                 Status = ConversionStatus.Succeeded,
