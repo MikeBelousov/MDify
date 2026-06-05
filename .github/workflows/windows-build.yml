@@ -11,6 +11,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build Windows artifacts
@@ -129,3 +132,18 @@ jobs:
         with:
           name: MDify-Windows-Portable
           path: dist/windows/MDify-Windows-Portable.zip
+
+      - name: Upload release assets
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME --verify-tag --latest --title "MDify $env:GITHUB_REF_NAME" --notes "Release assets are uploaded by CI."
+          }
+          gh release upload $env:GITHUB_REF_NAME `
+            dist/windows/installer/MDifySetup.exe `
+            dist/windows/MDify-Windows-Portable.zip `
+            --clobber

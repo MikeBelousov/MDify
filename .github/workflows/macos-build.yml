@@ -1,0 +1,84 @@
+name: macOS Build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "workers/**"
+      - "script/**"
+      - "Package.swift"
+      - ".github/workflows/macos-build.yml"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build macOS ${{ matrix.label }} assets
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+            label: AppleSilicon
+          - runner: macos-15-intel
+            arch: x86_64
+            label: Intel
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "APP_VERSION=0.1.${{ github.run_number }}" >> "$GITHUB_ENV"
+          fi
+          echo "BUILD_NUMBER=${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            workers/lite/requirements-lite.txt
+            workers/ocr/requirements-ocr.txt
+
+      - name: Test Swift package
+        run: swift test
+
+      - name: Build release archives
+        env:
+          PYTHON_BIN: python3
+        run: ./script/build_release.sh --variant all --arch ${{ matrix.arch }}
+
+      - name: Upload archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MDify-macOS-${{ matrix.label }}
+          path: |
+            dist/MDify-Lite-${{ matrix.label }}.zip
+            dist/MDify-OCR-${{ matrix.label }}.zip
+
+      - name: Upload release assets
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --verify-tag --latest --title "MDify $GITHUB_REF_NAME" --notes "Release assets are uploaded by CI."
+          gh release upload "$GITHUB_REF_NAME" \
+            "dist/MDify-Lite-${{ matrix.label }}.zip" \
+            "dist/MDify-OCR-${{ matrix.label }}.zip" \
+            --clobber
