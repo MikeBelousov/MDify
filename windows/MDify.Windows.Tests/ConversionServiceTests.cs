@@ -100,6 +100,32 @@ public sealed class ConversionServiceTests : IDisposable
         Assert.Equal(new[] { options }, worker.ReceivedOptions);
     }
 
+    [Fact]
+    public async Task ConvertAll_SnapshotsSelectedOptionsForWholeBatch()
+    {
+        var first = Touch("first.png");
+        var second = Touch("second.png");
+        ConversionService? service = null;
+        var worker = new QueueWorker(
+            onConverted: () => service!.OcrLanguage = OcrLanguageMode.Cyrillic);
+        service = new ConversionService(worker)
+        {
+            OcrLanguage = OcrLanguageMode.Latin
+        };
+        service.Items.Add(new ConversionItem(first));
+        service.Items.Add(new ConversionItem(second));
+
+        await service.ConvertAllAsync(_root, CancellationToken.None);
+
+        Assert.Equal(
+            new[]
+            {
+                new ConversionOptions(OcrLanguageMode.Latin),
+                new ConversionOptions(OcrLanguageMode.Latin)
+            },
+            worker.ReceivedOptions);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

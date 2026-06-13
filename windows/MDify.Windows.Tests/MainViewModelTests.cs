@@ -40,6 +40,29 @@ public sealed class MainViewModelTests : IDisposable
         Assert.Equal("# Notes", clipboard.Text);
     }
 
+    [Fact]
+    public void OcrVariant_DefaultsToAutomaticLanguageAndShowsSelector()
+    {
+        var viewModel = MakeViewModel(appVariant: AppVariant.Ocr);
+
+        Assert.True(viewModel.ShowsOcrLanguageSelector);
+        Assert.Equal(OcrLanguageMode.Auto, viewModel.SelectedOcrLanguage);
+        Assert.Equal(
+            new[] { "Automatic", "Cyrillic", "Latin" },
+            viewModel.OcrLanguageModes.Select(option => option.Label));
+    }
+
+    [Fact]
+    public void LiteVariant_HidesLanguageSelectorAndIgnoresSelection()
+    {
+        var viewModel = MakeViewModel(appVariant: AppVariant.Lite);
+
+        viewModel.SelectedOcrLanguage = OcrLanguageMode.Latin;
+
+        Assert.False(viewModel.ShowsOcrLanguageSelector);
+        Assert.Equal(OcrLanguageMode.Auto, viewModel.SelectedOcrLanguage);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
@@ -50,14 +73,17 @@ public sealed class MainViewModelTests : IDisposable
 
     private MainViewModel MakeViewModel(
         FakeDialogService? dialog = null,
-        FakeClipboardService? clipboard = null)
+        FakeClipboardService? clipboard = null,
+        AppVariant appVariant = AppVariant.Ocr)
     {
         return new MainViewModel(
             new ConversionService(new FakeWorker()),
             new FolderImportService(),
             dialog ?? new FakeDialogService(),
             clipboard ?? new FakeClipboardService(),
-            new FakeExplorerService());
+            new FakeExplorerService(),
+            appVariant,
+            new UserSettingsService(appVariant, Path.Combine(_root, "settings.json")));
     }
 
     private string Touch(string fileName)

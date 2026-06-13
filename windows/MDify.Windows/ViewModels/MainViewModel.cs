@@ -17,12 +17,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IDialogService _dialogService;
     private readonly IClipboardService _clipboardService;
     private readonly IExplorerService _explorerService;
+    private readonly AppVariant _appVariant;
+    private readonly UserSettingsService _settings;
     private readonly OutputRevealPolicy _revealPolicy = new();
     private CancellationTokenSource? _conversionCancellation;
     private ConversionItem? _selectedItem;
     private bool _isConverting;
     private string _outputFolder;
     private string _statusText = "Ready";
+    private OcrLanguageMode _selectedOcrLanguage = OcrLanguageMode.Auto;
 
     public MainViewModel()
         : this(
@@ -30,7 +33,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             new FolderImportService(),
             new DialogService(),
             new ClipboardService(),
-            new ExplorerService())
+            new ExplorerService(),
+            BuildVariant.Current)
     {
     }
 
@@ -39,13 +43,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         FolderImportService folderImportService,
         IDialogService dialogService,
         IClipboardService clipboardService,
-        IExplorerService explorerService)
+        IExplorerService explorerService,
+        AppVariant? appVariant = null,
+        UserSettingsService? settings = null)
     {
         _conversionService = conversionService;
         _folderImportService = folderImportService;
         _dialogService = dialogService;
         _clipboardService = clipboardService;
         _explorerService = explorerService;
+        _appVariant = appVariant ?? BuildVariant.Current;
+        _settings = settings ?? new UserSettingsService(_appVariant);
+        _selectedOcrLanguage = ShowsOcrLanguageSelector
+            ? _settings.LoadOcrLanguage()
+            : OcrLanguageMode.Auto;
+        _conversionService.OcrLanguage = _selectedOcrLanguage;
         _outputFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "MDify");
@@ -131,7 +143,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             _isConverting = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsLanguageSelectionEnabled));
             RaiseCommandStates();
+        }
+    }
+
+    public IReadOnlyList<OcrLanguageOption> OcrLanguageModes { get; } =
+    [
+        new(OcrLanguageMode.Auto, "Automatic"),
+        new(OcrLanguageMode.Cyrillic, "Cyrillic"),
+        new(OcrLanguageMode.Latin, "Latin")
+    ];
+
+    public bool ShowsOcrLanguageSelector => _appVariant == AppVariant.Ocr;
+
+    public bool IsLanguageSelectionEnabled => ShowsOcrLanguageSelector && !IsConverting;
+
+    public OcrLanguageMode SelectedOcrLanguage
+    {
+        get => _selectedOcrLanguage;
+        set
+        {
+            if (!ShowsOcrLanguageSelector || _selectedOcrLanguage == value)
+            {
+                return;
+            }
+
+            _selectedOcrLanguage = value;
+            _settings.SaveOcrLanguage(value);
+            _conversionService.OcrLanguage = value;
+            OnPropertyChanged();
         }
     }
 

@@ -1,15 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0-windows10.0.22000.0</TargetFramework>
+    <MDifyVariant Condition="'$(MDifyVariant)' == ''">Ocr</MDifyVariant>
+    <TargetFramework Condition="'$(MDifyVariant)' == 'Ocr'">net8.0-windows10.0.17763.0</TargetFramework>
+    <TargetFramework Condition="'$(MDifyVariant)' == 'Lite'">net8.0-windows10.0.26100.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(MDifyVariant)' == 'Ocr'">10.0.17763.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(MDifyVariant)' == 'Lite'">10.0.26100.0</SupportedOSPlatformVersion>
+    <DefineConstants Condition="'$(MDifyVariant)' == 'Ocr'">$(DefineConstants);MDIFY_WINDOWS_OCR</DefineConstants>
+    <DefineConstants Condition="'$(MDifyVariant)' == 'Lite'">$(DefineConstants);MDIFY_WINDOWS_LITE</DefineConstants>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(MDifyVariant)' == 'Ocr'">
+    <Compile Remove="NativeOcrRoutingClientTests.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />

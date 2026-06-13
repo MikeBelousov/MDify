@@ -16,6 +16,19 @@
         <Button Content="Add Folder" Command="{Binding AddFolderCommand}" Margin="2" Padding="10,4" />
         <Button Content="Output" Command="{Binding ChooseOutputFolderCommand}" Margin="2" Padding="10,4" />
         <Separator />
+        <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Visibility="{Binding ShowsOcrLanguageSelector, Converter={StaticResource BooleanToVisibilityConverter}}">
+          <TextBlock Text="Text language" VerticalAlignment="Center" Margin="4,0" />
+          <ComboBox ItemsSource="{Binding OcrLanguageModes}"
+                    DisplayMemberPath="Label"
+                    SelectedValuePath="Value"
+                    SelectedValue="{Binding SelectedOcrLanguage, Mode=TwoWay}"
+                    IsEnabled="{Binding IsLanguageSelectionEnabled}"
+                    MinWidth="120"
+                    Margin="2"
+                    AutomationProperties.Name="Text Language" />
+        </StackPanel>
         <Button Content="Convert All" Command="{Binding ConvertAllCommand}" Margin="2" Padding="10,4" />
         <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="2" Padding="10,4" />
         <Separator />
