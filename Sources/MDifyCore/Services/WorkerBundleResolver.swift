@@ -96,13 +96,13 @@ public struct WorkerBundleResolver {
 
     public func makeConversionRoute(
         runner: any ProcessRunning = ProcessRunner(),
-        nativeOCR: any NativeOCRRecognizing = VisionOCRService()
+        nativeOCRFactory: () -> any NativeOCRRecognizing = { VisionOCRService() }
     ) -> ConversionRoute {
         switch workerKind {
         case .lite:
             return ConversionRoute(
                 kind: .nativeLite,
-                client: makeNativeRoutingClient(runner: runner, nativeOCR: nativeOCR)
+                client: makeNativeRoutingClient(runner: runner, nativeOCR: nativeOCRFactory())
             )
         case .ocr:
             return ConversionRoute(
