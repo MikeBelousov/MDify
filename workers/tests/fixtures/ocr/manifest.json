@@ -1,0 +1,44 @@
+{
+  "fixtures": [
+    {
+      "path": "ru-clean.png",
+      "ocr_lang": "cyrillic",
+      "expected_lines": ["Быстрый OCR"]
+    },
+    {
+      "path": "en-clean.png",
+      "ocr_lang": "latin",
+      "expected_lines": ["Reliable OCR"]
+    },
+    {
+      "path": "ru-en-mixed.png",
+      "ocr_lang": "cyrillic",
+      "expected_lines": ["MDify распознает текст"]
+    },
+    {
+      "path": "latin-diacritics.png",
+      "ocr_lang": "latin",
+      "expected_lines": ["Café déjà vu"]
+    },
+    {
+      "path": "low-contrast.png",
+      "ocr_lang": "latin",
+      "expected_lines": ["Low contrast text"]
+    },
+    {
+      "path": "rotated.png",
+      "ocr_lang": "latin",
+      "expected_lines": ["Rotated text"]
+    },
+    {
+      "path": "digits-and-punctuation.png",
+      "ocr_lang": "latin",
+      "expected_lines": ["2026: 42.5% + EUR 10?"]
+    },
+    {
+      "path": "mixed-script-confusable.png",
+      "ocr_lang": "cyrillic",
+      "expected_lines": ["AА BВ CС EЕ KК MМ HН OО PР TТ XХ"]
+    }
+  ]
+}

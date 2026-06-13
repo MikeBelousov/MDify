@@ -52,3 +52,28 @@ def test_verify_only_bad_model_fails_without_download(tmp_path, monkeypatch):
     )
 
     assert result is False
+
+
+def test_missing_git_lfs_model_does_not_download_source_url(tmp_path, monkeypatch, capsys):
+    def fail_download(url: str, destination):
+        raise AssertionError(f"Git LFS entry must not download source_url: {url}")
+
+    monkeypatch.setattr(download_models, "MODELS_DIR", tmp_path)
+    monkeypatch.setattr(download_models, "download", fail_download)
+
+    result = download_models.ensure_file(
+        {
+            "path": "rec/PP-OCRv6_medium_rec.onnx",
+            "distribution": "git-lfs",
+            "source_url": "https://example.test/PP-OCRv6_medium_rec_infer.tar",
+            "sha256": hashlib.sha256(b"expected model").hexdigest(),
+        },
+        download_missing=True,
+    )
+
+    captured = capsys.readouterr()
+    assert result is False
+    assert (
+        "missing Git LFS OCR model: rec/PP-OCRv6_medium_rec.onnx; run git lfs pull"
+        in captured.err
+    )
