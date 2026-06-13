@@ -35,13 +35,21 @@ struct ContentView: View {
                 }
 
                 if appState.isOCRVariant {
-                    Picker("Text Language", selection: $appState.ocrLanguageMode) {
-                        Text("Automatic").tag(OCRLanguageMode.auto)
-                        Text("Cyrillic").tag(OCRLanguageMode.cyrillic)
-                        Text("Latin").tag(OCRLanguageMode.latin)
+                    Menu {
+                        Picker("Text Language", selection: $appState.ocrLanguageMode) {
+                            ForEach(OCRLanguageMode.allCases, id: \.self) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                    } label: {
+                        Label(
+                            "Text Language: \(appState.ocrLanguageMode.displayName)",
+                            systemImage: "character.book.closed"
+                        )
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 260)
+                    .disabled(conversionService.isConverting)
+                    .accessibilityLabel("Text Language")
+                    .accessibilityValue(appState.ocrLanguageMode.displayName)
                 }
 
                 Button {

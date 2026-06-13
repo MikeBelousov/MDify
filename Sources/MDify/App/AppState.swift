@@ -29,6 +29,7 @@ final class AppState: ObservableObject {
     @Published var importSummary: String?
     @Published var ocrLanguageMode: OCRLanguageMode {
         didSet {
+            guard workerKind == .ocr else { return }
             settingsStore.ocrLanguageMode = ocrLanguageMode
             conversionService.options.ocrLanguage = ocrLanguageMode
         }

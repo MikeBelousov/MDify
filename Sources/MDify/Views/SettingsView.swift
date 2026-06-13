@@ -26,11 +26,12 @@ struct SettingsView: View {
             if appState.isOCRVariant {
                 Section("OCR") {
                     Picker("Text Language", selection: $appState.ocrLanguageMode) {
-                        Text("Automatic").tag(OCRLanguageMode.auto)
-                        Text("Cyrillic").tag(OCRLanguageMode.cyrillic)
-                        Text("Latin").tag(OCRLanguageMode.latin)
+                        ForEach(OCRLanguageMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
                     }
                     .pickerStyle(.segmented)
+                    .disabled(appState.conversionService.isConverting)
                 }
             }
 

@@ -84,6 +84,7 @@ public final class ConversionService: ObservableObject {
         isConverting = true
         shouldCancel = false
         defer { isConverting = false }
+        let batchOptions = options
 
         var reservedNames = Set<String>()
         var reservedRoots: [String: URL] = [:]
@@ -100,11 +101,15 @@ public final class ConversionService: ObservableObject {
             } else {
                 outputURL = namer.markdownURL(for: item, in: outputDirectory, reservedRoots: &reservedRoots)
             }
-            await convert(itemID: item.id, outputURL: outputURL)
+            await convert(itemID: item.id, outputURL: outputURL, options: batchOptions)
         }
     }
 
-    private func convert(itemID: UUID, outputURL: URL) async {
+    private func convert(
+        itemID: UUID,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async {
         guard let item = items.first(where: { $0.id == itemID }) else { return }
         update(itemID) {
             $0.status = .converting
