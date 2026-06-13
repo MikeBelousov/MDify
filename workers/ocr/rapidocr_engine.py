@@ -4,6 +4,7 @@ from pathlib import Path
 
 from rapidocr import LangCls, LangDet, LangRec, ModelType, OCRVersion, RapidOCR
 from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
+from workers.ocr.line_detection import LineDetector
 from workers.ocr.reading_order import markdown_from_rapidocr_output
 
 
@@ -16,16 +17,40 @@ class OCRModelSet:
         return self.root / "det" / "ch_PP-OCRv5_det_server.onnx"
 
     @property
+    def detector(self) -> Path:
+        return self.det_model
+
+    @property
     def cls_model(self) -> Path:
         return self.root / "cls" / "ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx"
+
+    @property
+    def classifier(self) -> Path:
+        return self.cls_model
 
     @property
     def eslav_rec_model(self) -> Path:
         return self.root / "rec" / "eslav_PP-OCRv5_rec_mobile.onnx"
 
     @property
+    def eslav_recognizer(self) -> Path:
+        return self.eslav_rec_model
+
+    @property
     def latin_rec_model(self) -> Path:
         return self.root / "rec" / "latin_PP-OCRv5_rec_mobile.onnx"
+
+    @property
+    def latin_recognizer(self) -> Path:
+        return self.latin_rec_model
+
+    @property
+    def ppocrv6_recognizer(self) -> Path:
+        return self.root / "rec" / "PP-OCRv6_medium_rec.onnx"
+
+    @property
+    def ppocrv6_dictionary(self) -> Path:
+        return self.root / "dict" / "PP-OCRv6_medium_rec.txt"
 
     @property
     def font(self) -> Path:
@@ -38,6 +63,8 @@ class OCRModelSet:
             self.cls_model,
             self.eslav_rec_model,
             self.latin_rec_model,
+            self.ppocrv6_recognizer,
+            self.ppocrv6_dictionary,
             self.font,
         )
 
@@ -75,6 +102,10 @@ def build_engine(models: OCRModelSet, lang: str | OCRLanguageMode) -> RapidOCR:
         "Rec.model_path": str(rec_model),
     }
     return RapidOCR(params=params)
+
+
+def build_line_detector(models: OCRModelSet) -> LineDetector:
+    return LineDetector(build_engine(models, OCRLanguageMode.CYRILLIC))
 
 
 def ocr_image_to_markdown(

@@ -91,11 +91,18 @@ def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatc
 def test_ocr_model_set_exposes_all_required_ppocrv5_models(tmp_path: Path) -> None:
     models = OCRModelSet(tmp_path)
 
+    assert models.detector.name == "ch_PP-OCRv5_det_server.onnx"
+    assert models.classifier.name == "ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx"
+    assert models.eslav_recognizer.name == "eslav_PP-OCRv5_rec_mobile.onnx"
+    assert models.latin_recognizer.name == "latin_PP-OCRv5_rec_mobile.onnx"
+    assert models.ppocrv6_recognizer.name == "PP-OCRv6_medium_rec.onnx"
     assert models.required_models == (
         tmp_path / "det/ch_PP-OCRv5_det_server.onnx",
         tmp_path / "cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx",
         tmp_path / "rec/eslav_PP-OCRv5_rec_mobile.onnx",
         tmp_path / "rec/latin_PP-OCRv5_rec_mobile.onnx",
+        tmp_path / "rec/PP-OCRv6_medium_rec.onnx",
+        tmp_path / "dict/PP-OCRv6_medium_rec.txt",
         tmp_path / "fonts/cyrillic.ttf",
     )
 
