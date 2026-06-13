@@ -10,9 +10,10 @@ MIN_ACCEPTABLE_QUALITY = 0.70
 CANDIDATE_TIE_MARGIN = 0.03
 
 _TOKEN_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
-_REPEATED_CHARACTER_PATTERN = re.compile(r"(.)\1{3,}", re.IGNORECASE)
-_LATIN_CONFUSABLES = frozenset("AaBCcEeHKkMNOoPpTtXxYy")
-_CYRILLIC_CONFUSABLES = frozenset("АаВССсЕеНКкМНООоРрТТтХхУу")
+_REPEATED_LETTER_PATTERN = re.compile(r"([^\W\d_])\1{3,}", re.IGNORECASE)
+_LATIN_CONFUSABLES = frozenset("AaBCcEeHhIiJjKkMmNnOoPpQqSsTtXxYy")
+_CYRILLIC_CONFUSABLES = frozenset("АаВССсЕеННнІіЈјКкМмОоРрЅѕТтХхУу")
+_SUPPORTED_MODELS = frozenset({"eslav", "cyrillic", "latin", "ppocrv6"})
 
 
 @dataclass(frozen=True)
@@ -29,11 +30,14 @@ class TextQualityScore:
 def score_candidate(text: str, *, confidence: float, model: str) -> TextQualityScore:
     if not 0.0 <= confidence <= 1.0:
         raise ValueError("confidence must be between 0 and 1")
+    normalized_model = model.lower()
+    if normalized_model not in _SUPPORTED_MODELS:
+        raise ValueError(f"unsupported OCR model: {model}")
 
     mixed_ratio = _mixed_confusable_token_ratio(text)
-    unsupported_ratio = _unsupported_script_ratio(text, model)
+    unsupported_ratio = _unsupported_script_ratio(text, normalized_model)
     replacement_ratio = _replacement_or_control_ratio(text)
-    repetition_penalty = 1.0 if _REPEATED_CHARACTER_PATTERN.search(text) else 0.0
+    repetition_penalty = 1.0 if _REPEATED_LETTER_PATTERN.search(text) else 0.0
 
     quality_score = max(
         0.0,
@@ -48,6 +52,8 @@ def score_candidate(text: str, *, confidence: float, model: str) -> TextQualityS
     )
 
     reasons: list[str] = []
+    if not text.strip():
+        reasons.append("empty-text")
     if confidence < AUTO_CONFIDENCE_THRESHOLD:
         reasons.append("low-confidence")
     if mixed_ratio > 0.20:
@@ -91,18 +97,17 @@ def _mixed_confusable_token_ratio(text: str) -> float:
 
 
 def _unsupported_script_ratio(text: str, model: str) -> float:
-    script_characters = [
-        _script(character)
-        for character in text
-        if _script(character) in {"latin", "cyrillic", "other-letter"}
-    ]
+    script_characters = []
+    for character in text:
+        script = _script(character)
+        if script in {"latin", "cyrillic", "other-letter"}:
+            script_characters.append(script)
     if not script_characters:
         return 0.0
 
-    normalized_model = model.lower()
-    if normalized_model in {"eslav", "cyrillic"}:
+    if model in {"eslav", "cyrillic"}:
         supported = {"latin", "cyrillic"}
-    elif normalized_model == "latin":
+    elif model == "latin":
         supported = {"latin"}
     else:
         supported = {"latin", "cyrillic", "other-letter"}

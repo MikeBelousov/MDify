@@ -31,6 +31,14 @@ def test_low_confidence_candidate_needs_retry() -> None:
     assert "low-confidence" in result.reasons
 
 
+@pytest.mark.parametrize("text", ["", "   \n"])
+def test_empty_candidate_needs_retry_even_with_high_confidence(text: str) -> None:
+    result = score_candidate(text, confidence=0.99, model="eslav")
+
+    assert result.needs_retry
+    assert "empty-text" in result.reasons
+
+
 def test_mixed_confusable_token_needs_retry_even_with_high_confidence() -> None:
     result = score_candidate("Pасходы", confidence=0.93, model="eslav")
 
@@ -42,6 +50,13 @@ def test_mixed_non_confusable_token_is_not_penalized() -> None:
     result = score_candidate("abcЖ", confidence=0.93, model="eslav")
 
     assert "mixed-confusable-token" not in result.reasons
+
+
+@pytest.mark.parametrize("text", ["IА", "AІ"])
+def test_additional_unicode_homoglyph_pairs_need_retry(text: str) -> None:
+    result = score_candidate(text, confidence=0.93, model="eslav")
+
+    assert "mixed-confusable-token" in result.reasons
 
 
 def test_digits_only_candidate_uses_confidence_without_script_penalty() -> None:
@@ -76,6 +91,18 @@ def test_repeated_character_run_is_penalized() -> None:
 
     assert result.needs_retry
     assert "repetition" in result.reasons
+
+
+@pytest.mark.parametrize("text", ["0000", "----", "!!!!"])
+def test_repeated_digits_and_punctuation_are_not_penalized(text: str) -> None:
+    result = score_candidate(text, confidence=0.96, model="latin")
+
+    assert "repetition" not in result.reasons
+
+
+def test_unknown_model_is_rejected() -> None:
+    with pytest.raises(ValueError, match="model"):
+        score_candidate("Revenue", confidence=0.9, model="latni")
 
 
 def test_rejects_confidence_outside_probability_range() -> None:
