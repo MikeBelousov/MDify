@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import unicodedata
 
 from workers.ocr.line_recognition import LineRecognizer, OCRRecognitionError
 from workers.ocr.ocr_types import DetectedLine, OCRCandidate, SelectedOCRLine
@@ -48,12 +49,16 @@ class AutoOCRRouter:
             else {}
         )
         for line in latin_lines:
-            candidate = latin[line.index]
-            if candidate.quality.quality_score > selected[line.index].quality.quality_score:
-                selected[line.index] = candidate
+            selected[line.index] = _select_v5_candidate(
+                eslav[line.index],
+                latin[line.index],
+            )
 
         ppocrv6_lines = [
-            line for line in latin_lines if selected[line.index].quality.needs_retry
+            line
+            for line in latin_lines
+            if selected[line.index].quality.needs_retry
+            or _is_clean_close_conflict(eslav[line.index], latin[line.index])
         ]
         ppocrv6 = (
             _candidate_map(
@@ -67,10 +72,10 @@ class AutoOCRRouter:
         for line in ppocrv6_lines:
             candidate = ppocrv6[line.index]
             current = selected[line.index]
-            if (
-                candidate.quality.quality_score
-                >= current.quality.quality_score + CANDIDATE_TIE_MARGIN
-            ):
+            improvement = (
+                candidate.quality.quality_score - current.quality.quality_score
+            )
+            if improvement >= CANDIDATE_TIE_MARGIN - 1e-12:
                 selected[line.index] = candidate
 
         return AutoOCRResult(
@@ -100,3 +105,67 @@ def _resolve(
     if hasattr(source, "recognize"):
         return source  # type: ignore[return-value]
     return source()
+
+
+def _select_v5_candidate(
+    eslav: OCRCandidate,
+    latin: OCRCandidate,
+) -> OCRCandidate:
+    difference = latin.quality.quality_score - eslav.quality.quality_score
+    if abs(difference) > CANDIDATE_TIE_MARGIN + 1e-12:
+        return latin if difference > 0 else eslav
+
+    if _contains_no_letters(eslav.text) and _contains_no_letters(latin.text):
+        return latin if latin.confidence > eslav.confidence else eslav
+    if _contains_cyrillic(eslav.text) or _contains_cyrillic(latin.text):
+        return eslav
+    if _is_latin_only(eslav.text) and _is_latin_only(latin.text):
+        return latin
+    return latin if difference > 0 else eslav
+
+
+def _is_clean_close_conflict(
+    eslav: OCRCandidate,
+    latin: OCRCandidate,
+) -> bool:
+    difference = abs(
+        latin.quality.quality_score - eslav.quality.quality_score
+    )
+    return (
+        difference <= CANDIDATE_TIE_MARGIN + 1e-12
+        and eslav.text != latin.text
+        and _has_clean_text(eslav)
+        and _has_clean_text(latin)
+    )
+
+
+def _has_clean_text(candidate: OCRCandidate) -> bool:
+    text_quality_reasons = {
+        "empty-text",
+        "mixed-confusable-token",
+        "unsupported-script",
+        "replacement-or-control",
+        "repetition",
+    }
+    return not text_quality_reasons.intersection(candidate.quality.reasons)
+
+
+def _contains_cyrillic(text: str) -> bool:
+    return any("CYRILLIC" in unicodedata.name(character, "") for character in text)
+
+
+def _is_latin_only(text: str) -> bool:
+    letters = [
+        character
+        for character in text
+        if unicodedata.category(character).startswith("L")
+    ]
+    return bool(letters) and all(
+        "LATIN" in unicodedata.name(character, "") for character in letters
+    )
+
+
+def _contains_no_letters(text: str) -> bool:
+    return not any(
+        unicodedata.category(character).startswith("L") for character in text
+    )

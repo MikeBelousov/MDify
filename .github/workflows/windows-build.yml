@@ -80,11 +80,16 @@ jobs:
           python -m pip install -r workers/ocr/requirements-ocr.txt
           python -m pip install pytest
 
+      - name: Download OCR models
+        shell: pwsh
+        run: python workers/build/download_models.py
+
       - name: Test Python workers
         shell: pwsh
         run: |
           python -m pytest workers/tests/test_lite_worker.py -q
           python -m pytest workers/tests/test_ocr_worker.py -q
+          python -m pytest workers/tests/test_ocr_benchmark.py -q
           python -m pytest workers/tests/test_windows_worker_build_script.py -q
           python -m pytest windows/tests/test_installer_contract.py windows/tests/test_windows_variant_contract.py -q
 
@@ -141,9 +146,20 @@ jobs:
           if (Test-Path "$ocr/Workers/mdify-worker-lite") {
             throw "Unexpected Lite worker found in OCR publish"
           }
-          $windowsAiAssemblies = Get-ChildItem $ocr -Recurse -File -Filter "Microsoft.Windows.AI*.dll"
-          if ($windowsAiAssemblies) {
-            throw "Windows AI assemblies found in OCR publish: $($windowsAiAssemblies.FullName -join ', ')"
+          $ocrDeps = Get-ChildItem $ocr -Recurse -File -Filter "*.deps.json"
+          if (-not $ocrDeps) {
+            throw "Expected a deps.json file in OCR publish"
+          }
+          $windowsAppSdkReferences = Select-String -Path $ocrDeps.FullName -Pattern "Microsoft.WindowsAppSDK"
+          if ($windowsAppSdkReferences) {
+            throw "Microsoft.WindowsAppSDK reference found in OCR publish deps.json"
+          }
+          $forbiddenOcrAssemblies = Get-ChildItem $ocr -Recurse -File | Where-Object {
+            $_.Name -like "Microsoft.Windows.AI*.dll" -or
+            $_.Name -like "Microsoft.Graphics.Imaging*.dll"
+          }
+          if ($forbiddenOcrAssemblies) {
+            throw "Windows AI or imaging assemblies found in OCR publish: $($forbiddenOcrAssemblies.FullName -join ', ')"
           }
 
       - name: Build Inno installers

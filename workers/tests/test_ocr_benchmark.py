@@ -4,11 +4,11 @@ from itertools import zip_longest
 import json
 from pathlib import Path
 
-from PIL import Image
 import pytest
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "ocr"
+PRE_SMART_BASELINE_PATH = FIXTURES_DIR / "pre-smart-baseline.json"
 EXPECTED_FIXTURES = {
     "ru-clean.png",
     "en-clean.png",
@@ -65,97 +65,52 @@ def test_metric_examples() -> None:
     assert character_error_rate(["one", "two"], ["one", "too"]) == pytest.approx(1 / 7)
 
 
-def test_ocr_baseline() -> None:
-    pytest.importorskip("onnxruntime")
-    from workers.ocr.ppocrv6_adapter import PPOCRV6Recognizer
+def test_pre_smart_baseline_is_frozen_for_fixture_corpus() -> None:
+    baseline = json.loads(PRE_SMART_BASELINE_PATH.read_text(encoding="utf-8"))
 
-    models_dir = Path("workers/ocr/models")
-    model_path = models_dir / "rec" / "PP-OCRv6_medium_rec.onnx"
-    dictionary_path = models_dir / "dict" / "PP-OCRv6_medium_rec.txt"
-    if not model_path.is_file() or not dictionary_path.is_file():
-        pytest.skip("PP-OCRv6 Git LFS model is not available")
+    assert baseline["source"] == "pre-smart PP-OCRv6 recognition-only"
+    assert (
+        baseline["captured_from_commit"]
+        == "799d985e630b3efa8b88a7967bee62a568e262db"
+    )
+    assert {fixture["path"] for fixture in baseline["fixtures"]} == EXPECTED_FIXTURES
+    assert baseline["exact_line_accuracy"] == pytest.approx(0.625)
+    assert baseline["character_error_rate"] == pytest.approx(0.2752130681818182)
 
-    manifest = json.loads((FIXTURES_DIR / "manifest.json").read_text(encoding="utf-8"))
-    images = []
-    for fixture in manifest["fixtures"]:
-        with Image.open(FIXTURES_DIR / fixture["path"]) as image:
-            images.append(image.copy())
-    recognized = PPOCRV6Recognizer(model_path, dictionary_path).recognize(images)
-    results = []
-    for fixture, (actual, confidence) in zip(
-        manifest["fixtures"],
-        recognized,
-        strict=True,
+
+def test_benchmark_runs_in_macos_and_windows_ci() -> None:
+    command = "pytest workers/tests/test_ocr_benchmark.py -q"
+
+    for workflow_path in (
+        Path(".github/workflows/macos-build.yml"),
+        Path(".github/workflows/windows-build.yml"),
     ):
-        actual_lines = [actual] if actual else []
-        expected_lines = fixture["expected_lines"]
-        results.append(
-            {
-                "path": fixture["path"],
-                "exact_line_accuracy": exact_line_accuracy(expected_lines, actual_lines),
-                "character_error_rate": character_error_rate(expected_lines, actual_lines),
-                "confidence": confidence,
-            }
-        )
-
-    baseline = {
-        "exact_line_accuracy": sum(item["exact_line_accuracy"] for item in results)
-        / len(results),
-        "character_error_rate": sum(item["character_error_rate"] for item in results)
-        / len(results),
-        "fixtures": results,
-    }
-    print(f"OCR baseline: {json.dumps(baseline, ensure_ascii=False, sort_keys=True)}")
+        assert command in workflow_path.read_text(encoding="utf-8")
 
 
 def test_smart_ocr_meets_quality_gate() -> None:
     pytest.importorskip("onnxruntime")
     from workers.ocr.language_mode import OCRLanguageMode
-    from workers.ocr.ppocrv6_adapter import PPOCRV6Recognizer
-    from workers.ocr.rapidocr_engine import ocr_image_to_markdown
+    from workers.ocr.rapidocr_engine import OCRModelSet, ocr_image_to_markdown
 
     models_dir = Path("workers/ocr/models")
-    model_path = models_dir / "rec" / "PP-OCRv6_medium_rec.onnx"
-    dictionary_path = models_dir / "dict" / "PP-OCRv6_medium_rec.txt"
-    if not model_path.is_file() or not dictionary_path.is_file():
-        pytest.skip("PP-OCRv6 Git LFS model is not available")
+    missing_models = OCRModelSet(models_dir).missing_files()
+    if missing_models:
+        pytest.skip(f"OCR models are not available: {missing_models}")
 
     manifest = json.loads((FIXTURES_DIR / "manifest.json").read_text(encoding="utf-8"))
+    baseline = json.loads(PRE_SMART_BASELINE_PATH.read_text(encoding="utf-8"))
     fixtures = manifest["fixtures"]
-    images = []
-    for fixture in fixtures:
-        with Image.open(FIXTURES_DIR / fixture["path"]) as image:
-            images.append(image.copy())
-    baseline_outputs = PPOCRV6Recognizer(model_path, dictionary_path).recognize(images)
 
-    baseline_results = []
     smart_results = []
-    for fixture, (baseline_text, _confidence) in zip(
-        fixtures,
-        baseline_outputs,
-        strict=True,
-    ):
+    for fixture in fixtures:
         expected_lines = fixture["expected_lines"]
-        baseline_lines = [baseline_text] if baseline_text else []
         smart = ocr_image_to_markdown(
             FIXTURES_DIR / fixture["path"],
             models_dir,
             OCRLanguageMode.AUTO,
         )
         smart_lines = [line for line in smart.markdown.splitlines() if line]
-        baseline_results.append(
-            {
-                "path": fixture["path"],
-                "exact_line_accuracy": exact_line_accuracy(
-                    expected_lines,
-                    baseline_lines,
-                ),
-                "character_error_rate": character_error_rate(
-                    expected_lines,
-                    baseline_lines,
-                ),
-            }
-        )
         smart_results.append(
             {
                 "path": fixture["path"],
@@ -170,7 +125,6 @@ def test_smart_ocr_meets_quality_gate() -> None:
             }
         )
 
-    baseline = summarize_results(baseline_results)
     smart = summarize_results(smart_results)
     print(
         "Smart OCR quality: "
@@ -184,7 +138,9 @@ def test_smart_ocr_meets_quality_gate() -> None:
     assert smart["exact_line_accuracy"] >= baseline["exact_line_accuracy"]
     assert smart["character_error_rate"] <= baseline["character_error_rate"]
     baseline_mixed = next(
-        result for result in baseline_results if result["path"] == "ru-en-mixed.png"
+        result
+        for result in baseline["fixtures"]
+        if result["path"] == "ru-en-mixed.png"
     )
     smart_mixed = next(
         result for result in smart_results if result["path"] == "ru-en-mixed.png"

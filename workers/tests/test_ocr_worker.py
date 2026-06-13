@@ -79,16 +79,20 @@ def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(mdify_worker_ocr, "ocr_image_file_to_markdown", fake_ocr)
 
-    result = mdify_worker_ocr.convert(
-        argparse.Namespace(
-            input_path=input_path,
-            output_path=output_path,
-            models_dir=None,
-            ocr="auto",
-            ocr_lang="auto",
-            dpi=300,
-        )
+    args = build_parser("ocr").parse_args(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--ocr",
+            "auto",
+        ]
     )
+    args.input_path = input_path
+    args.output_path = output_path
+
+    result = mdify_worker_ocr.convert(args)
 
     assert result.ok is True
     assert captured == [OCRLanguageMode.AUTO]
@@ -454,3 +458,51 @@ def test_ocr_off_for_pdf_uses_markitdown_without_rapidocr(monkeypatch: pytest.Mo
     assert result.engine == "markitdown"
     assert result.ocr_used is False
     assert output_path.read_text(encoding="utf-8") == "markitdown text\n"
+
+
+def test_ocr_auto_for_text_layer_pdf_uses_markitdown_without_rapidocr(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "text-layer.pdf"
+    output_path = tmp_path / "text-layer.md"
+    input_path.write_bytes(b"%PDF-1.4\n")
+    scanned_checks: list[Path] = []
+    markitdown_calls: list[Path] = []
+
+    def fake_appears_scanned(path: Path) -> bool:
+        scanned_checks.append(path)
+        return False
+
+    def fake_markitdown(path: Path) -> str:
+        markitdown_calls.append(path)
+        return "text layer\n"
+
+    def fail_rapidocr(*_args, **_kwargs):
+        raise AssertionError("RapidOCR should not run for a text-layer PDF")
+
+    monkeypatch.setattr(mdify_worker_ocr, "appears_scanned_pdf", fake_appears_scanned)
+    monkeypatch.setattr(mdify_worker_ocr, "convert_with_markitdown", fake_markitdown)
+    monkeypatch.setattr(mdify_worker_ocr, "ocr_pdf_to_markdown", fail_rapidocr)
+
+    args = build_parser("ocr").parse_args(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--ocr",
+            "auto",
+        ]
+    )
+    args.input_path = input_path
+    args.output_path = output_path
+
+    result = mdify_worker_ocr.convert(args)
+
+    assert result.ok is True
+    assert result.engine == "markitdown"
+    assert result.ocr_used is False
+    assert scanned_checks == [input_path]
+    assert markitdown_calls == [input_path]
+    assert output_path.read_text(encoding="utf-8") == "text layer\n"
