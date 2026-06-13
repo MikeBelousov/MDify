@@ -25,6 +25,21 @@ public struct WorkerBundleStatus: Equatable, Sendable {
     }
 }
 
+public enum ConversionRouteKind: Equatable, Sendable {
+    case nativeLite
+    case directOCRWorker
+}
+
+public struct ConversionRoute: Sendable {
+    public let kind: ConversionRouteKind
+    public let client: any WorkerConverting
+
+    public init(kind: ConversionRouteKind, client: any WorkerConverting) {
+        self.kind = kind
+        self.client = client
+    }
+}
+
 public struct WorkerBundleResolver {
     public let bundleURL: URL
     public let workerKind: WorkerKind
@@ -77,6 +92,24 @@ public struct WorkerBundleResolver {
             rapidOCRWorkerClient: rapidOCRWorkerClient,
             nativeOCR: nativeOCR
         )
+    }
+
+    public func makeConversionRoute(
+        runner: any ProcessRunning = ProcessRunner(),
+        nativeOCR: any NativeOCRRecognizing = VisionOCRService()
+    ) -> ConversionRoute {
+        switch workerKind {
+        case .lite:
+            return ConversionRoute(
+                kind: .nativeLite,
+                client: makeNativeRoutingClient(runner: runner, nativeOCR: nativeOCR)
+            )
+        case .ocr:
+            return ConversionRoute(
+                kind: .directOCRWorker,
+                client: makeClient(ocrMode: .auto, runner: runner)
+            )
+        }
     }
 
     private func workerExecutableURL() -> URL {

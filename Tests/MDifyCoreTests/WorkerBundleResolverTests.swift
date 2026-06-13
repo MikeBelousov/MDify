@@ -72,4 +72,30 @@ final class WorkerBundleResolverTests: XCTestCase {
         XCTAssertEqual(client.kind, .ocr)
         XCTAssertEqual(client.ocrMode, .off)
     }
+
+    func testLiteVariantBuildsNativeRoutingClient() {
+        let resolver = WorkerBundleResolver(
+            bundleURL: URL(fileURLWithPath: "/tmp/TestResources", isDirectory: true),
+            workerKind: .lite
+        )
+
+        let route = resolver.makeConversionRoute()
+
+        XCTAssertEqual(route.kind, .nativeLite)
+        XCTAssertTrue(route.client is NativeOCRRoutingClient)
+    }
+
+    func testOCRVariantBuildsDirectWorkerRoute() {
+        let resolver = WorkerBundleResolver(
+            bundleURL: URL(fileURLWithPath: "/tmp/TestResources", isDirectory: true),
+            workerKind: .ocr
+        )
+
+        let route = resolver.makeConversionRoute()
+
+        XCTAssertEqual(route.kind, .directOCRWorker)
+        let client = route.client as? WorkerClient
+        XCTAssertEqual(client?.kind, .ocr)
+        XCTAssertEqual(client?.ocrMode, .auto)
+    }
 }

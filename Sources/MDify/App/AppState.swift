@@ -35,7 +35,7 @@ final class AppState: ObservableObject {
 
     init(workerResolver: WorkerBundleResolver = WorkerBundleResolver()) {
         self.workerResolver = workerResolver
-        self.conversionService = ConversionService(workerClient: workerResolver.makeNativeRoutingClient())
+        self.conversionService = ConversionService(workerClient: workerResolver.makeConversionRoute().client)
         self.folderImportService = FolderImportService(
             policy: ConvertibleFilePolicy(workerKind: workerResolver.workerKind)
         )

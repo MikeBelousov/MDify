@@ -13,7 +13,7 @@ public final class ConversionService: ObservableObject {
     private var shouldCancel = false
 
     public init(
-        workerClient: any WorkerConverting = WorkerBundleResolver().makeNativeRoutingClient(),
+        workerClient: any WorkerConverting = WorkerBundleResolver().makeConversionRoute().client,
         namer: OutputFileNamer = OutputFileNamer(),
         options: ConversionOptions = .default
     ) {
