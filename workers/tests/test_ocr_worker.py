@@ -8,8 +8,10 @@ import sys
 
 from PIL import Image, ImageDraw
 import pytest
-from workers.ocr import mdify_worker_ocr
+from rapidocr import LangCls, LangDet, LangRec, ModelType, OCRVersion
+from workers.ocr import mdify_worker_ocr, rapidocr_engine
 from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
+from workers.ocr.rapidocr_engine import OCRModelSet
 from workers.common.cli import build_parser
 
 
@@ -26,6 +28,8 @@ def run_ocr(input_path: Path, output_path: Path, models_dir: Path) -> tuple[int,
         "json",
         "--models-dir",
         str(models_dir),
+        "--ocr-lang",
+        OCRLanguageMode.LATIN.value,
     ]
     result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     assert result.stdout.strip(), result.stderr
@@ -48,6 +52,13 @@ def test_ocr_language_defaults_to_auto() -> None:
     args = build_parser("ocr").parse_args(["--input", "in.png", "--output", "out.md"])
 
     assert args.ocr_lang is OCRLanguageMode.AUTO
+
+
+def test_ocr_language_help_uses_wire_values() -> None:
+    help_text = build_parser("ocr").format_help()
+
+    assert "{auto,cyrillic,latin}" in help_text
+    assert "OCRLanguageMode." not in help_text
 
 
 def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -77,6 +88,115 @@ def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatc
     assert captured == [OCRLanguageMode.AUTO]
 
 
+def test_ocr_model_set_exposes_all_required_ppocrv5_models(tmp_path: Path) -> None:
+    models = OCRModelSet(tmp_path)
+
+    assert models.required_models == (
+        tmp_path / "det/ch_PP-OCRv5_det_server.onnx",
+        tmp_path / "cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx",
+        tmp_path / "rec/eslav_PP-OCRv5_rec_mobile.onnx",
+        tmp_path / "rec/latin_PP-OCRv5_rec_mobile.onnx",
+        tmp_path / "fonts/cyrillic.ttf",
+    )
+
+
+@pytest.mark.parametrize(
+    ("language_mode", "filename"),
+    [
+        (OCRLanguageMode.CYRILLIC, "eslav_PP-OCRv5_rec_mobile.onnx"),
+        (OCRLanguageMode.LATIN, "latin_PP-OCRv5_rec_mobile.onnx"),
+    ],
+)
+def test_ocr_model_set_selects_manual_recognition_model(
+    tmp_path: Path,
+    language_mode: OCRLanguageMode,
+    filename: str,
+) -> None:
+    models = OCRModelSet(tmp_path)
+
+    assert models.rec_model_for(language_mode) == tmp_path / "rec" / filename
+
+
+def test_ocr_model_set_does_not_map_auto_to_cyrillic(tmp_path: Path) -> None:
+    models = OCRModelSet(tmp_path)
+
+    with pytest.raises(ValueError, match="AUTO"):
+        models.rec_model_for(OCRLanguageMode.AUTO)
+
+
+@pytest.mark.parametrize(
+    ("language_mode", "rec_lang", "rec_filename"),
+    [
+        (OCRLanguageMode.CYRILLIC, LangRec.ESLAV, "eslav_PP-OCRv5_rec_mobile.onnx"),
+        (OCRLanguageMode.LATIN, LangRec.LATIN, "latin_PP-OCRv5_rec_mobile.onnx"),
+    ],
+)
+def test_build_engine_configures_ppocrv5_models(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    language_mode: OCRLanguageMode,
+    rec_lang: LangRec,
+    rec_filename: str,
+) -> None:
+    captured: dict = {}
+
+    def fake_rapidocr(*, params: dict):
+        captured.update(params)
+        return object()
+
+    monkeypatch.setattr(rapidocr_engine, "RapidOCR", fake_rapidocr)
+
+    rapidocr_engine.build_engine(OCRModelSet(tmp_path), language_mode)
+
+    assert captured["Det.ocr_version"] is OCRVersion.PPOCRV5
+    assert captured["Det.lang_type"] is LangDet.CH
+    assert captured["Det.model_type"] is ModelType.SERVER
+    assert captured["Det.model_path"] == str(tmp_path / "det/ch_PP-OCRv5_det_server.onnx")
+    assert captured["Cls.ocr_version"] is OCRVersion.PPOCRV5
+    assert captured["Cls.lang_type"] is LangCls.CH
+    assert captured["Cls.model_path"] == str(
+        tmp_path / "cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx"
+    )
+    assert captured["Rec.ocr_version"] is OCRVersion.PPOCRV5
+    assert captured["Rec.lang_type"] is rec_lang
+    assert captured["Rec.model_path"] == str(tmp_path / "rec" / rec_filename)
+
+
+def test_model_manifest_uses_ppocrv5_models_and_preserves_ppocrv6() -> None:
+    manifest_path = Path(__file__).resolve().parents[1] / "ocr/model_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries = {entry["path"]: entry for entry in manifest["files"]}
+    expected_downloads = {
+        "det/ch_PP-OCRv5_det_server.onnx": (
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/det/ch_PP-OCRv5_det_server.onnx",
+            "0f8846b1d4bba223a2a2f9d9b44022fbc22cc019051a602b41a7fda9667e4cad",
+        ),
+        "cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx": (
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx",
+            "54379ae5174d026780215fc748a7f31910dee36818e63d49e17dc598ecc82df7",
+        ),
+        "rec/eslav_PP-OCRv5_rec_mobile.onnx": (
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/rec/eslav_PP-OCRv5_rec_mobile.onnx",
+            "08705d6721849b1347d26187f15a5e362c431963a2a62bfff4feac578c489aab",
+        ),
+        "rec/latin_PP-OCRv5_rec_mobile.onnx": (
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/rec/latin_PP-OCRv5_rec_mobile.onnx",
+            "b20bd37c168a570f583afbc8cd7925603890efbcdc000a59e22c269d160b5f5a",
+        ),
+    }
+
+    for path, (url, sha256) in expected_downloads.items():
+        assert entries[path]["url"] == url
+        assert entries[path]["sha256"] == sha256
+
+    assert {
+        "det/multi_PP-OCRv3_det_mobile.onnx",
+        "cls/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+        "rec/cyrillic_PP-OCRv5_rec_mobile.onnx",
+    }.isdisjoint(entries)
+    assert entries["rec/PP-OCRv6_medium_rec.onnx"]["distribution"] == "git-lfs"
+
+
 def test_ocr_worker_reports_missing_models_for_image(tmp_path: Path) -> None:
     input_path = tmp_path / "sample.png"
     output_path = tmp_path / "sample.md"
@@ -95,7 +215,7 @@ def test_ocr_worker_reports_missing_models_for_image(tmp_path: Path) -> None:
 
 def test_ocr_worker_converts_image_with_bundled_models(tmp_path: Path) -> None:
     models_dir = Path("workers/ocr/models")
-    if not (models_dir / "det/multi_PP-OCRv3_det_mobile.onnx").is_file():
+    if not (models_dir / "det/ch_PP-OCRv5_det_server.onnx").is_file():
         pytest.skip("OCR models are not downloaded")
 
     input_path = tmp_path / "sample.png"

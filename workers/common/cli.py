@@ -7,9 +7,7 @@ import sys
 import traceback
 
 from workers.common.result import WorkerResult
-from workers.ocr.language_mode import parse_language_mode
-
-
+from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
 Converter = Callable[[argparse.Namespace], WorkerResult]
 
 
@@ -22,8 +20,9 @@ def build_parser(worker: str) -> argparse.ArgumentParser:
     parser.add_argument(
         "--ocr-lang",
         type=parse_language_mode,
-        choices=list(parse_language_mode(value) for value in ("auto", "cyrillic", "latin")),
-        default=parse_language_mode("auto"),
+        choices=list(OCRLanguageMode),
+        default=OCRLanguageMode.AUTO,
+        metavar="{auto,cyrillic,latin}",
     )
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--models-dir")
