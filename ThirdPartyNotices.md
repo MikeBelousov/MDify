@@ -19,6 +19,8 @@ The OCR worker includes all Lite worker dependencies plus:
 - Pillow 12.2.0: HPND-style Pillow license.
 - NumPy 2.4.6: BSD-3-Clause.
 - opencv-python 4.13.0.92 and opencv-python-headless 4.13.0.92: Apache-2.0.
+- RapidOCR PP-OCRv5 detection, textline orientation classification, and
+  Eslavic/Latin recognition models: RapidOCR model license.
 - PaddleOCR PP-OCRv6 medium recognition model, exported to ONNX: Apache-2.0.
 
 OCR model files are listed in `workers/ocr/model_manifest.json` with source URLs,
