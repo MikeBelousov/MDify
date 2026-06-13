@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from rapidocr import LangCls, LangDet, LangRec, ModelType, OCRVersion, RapidOCR
+from rapidocr.ch_ppocr_cls import TextClassifier
+from rapidocr.ch_ppocr_det import TextDetector
+from rapidocr.ch_ppocr_rec import TextRecognizer
+from rapidocr.utils.load_image import LoadImage
 from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
 from workers.ocr.line_detection import LineDetector
+from workers.ocr.line_recognition import PPOCRV6LineRecognizer, RapidOCRLineRecognizer
+from workers.ocr.model_registry import OCRModelRegistry
+from workers.ocr.ppocrv6_adapter import PPOCRV6Recognizer
 from workers.ocr.reading_order import markdown_from_rapidocr_output
 
 
@@ -76,15 +85,66 @@ class OCRModelSet:
             return self.latin_rec_model
         raise ValueError("AUTO OCR language requires the automatic language router")
 
-    def missing_files(self) -> list[Path]:
-        return [path for path in self.required_models if not path.is_file()]
+    def required_models_for(
+        self,
+        lang: str | OCRLanguageMode,
+    ) -> tuple[Path, ...]:
+        language_mode = parse_language_mode(lang)
+        common = (self.detector, self.classifier, self.font)
+        if language_mode is OCRLanguageMode.CYRILLIC:
+            return common + (self.eslav_recognizer,)
+        if language_mode is OCRLanguageMode.LATIN:
+            return common + (self.latin_recognizer,)
+        return self.required_models
+
+    def missing_files(
+        self,
+        lang: str | OCRLanguageMode | None = None,
+    ) -> list[Path]:
+        required = self.required_models if lang is None else self.required_models_for(lang)
+        return [path for path in required if not path.is_file()]
 
 
 def build_engine(models: OCRModelSet, lang: str | OCRLanguageMode) -> RapidOCR:
     language_mode = parse_language_mode(lang)
-    rec_model = models.rec_model_for(language_mode)
-    rec_lang = LangRec.LATIN if language_mode is OCRLanguageMode.LATIN else LangRec.ESLAV
-    params = {
+    return RapidOCR(params=_engine_params(models, language_mode))
+
+
+class _DetectionEngine(RapidOCR):
+    def __init__(self, params: dict[str, Any]) -> None:
+        cfg = self._load_config(None, params)
+        self.min_height = cfg.Global.min_height
+        self.width_height_ratio = cfg.Global.width_height_ratio
+        self.max_side_len = cfg.Global.max_side_len
+        self.min_side_len = cfg.Global.min_side_len
+
+        cfg.Det.engine_cfg = cfg.EngineConfig[cfg.Det.engine_type.value]
+        cfg.Det.model_root_dir = cfg.Global.model_root_dir
+        self.text_det = TextDetector(cfg.Det)
+
+        cfg.Cls.engine_cfg = cfg.EngineConfig[cfg.Cls.engine_type.value]
+        cfg.Cls.model_root_dir = cfg.Global.model_root_dir
+        self.text_cls = TextClassifier(cfg.Cls)
+        self.load_img = LoadImage()
+
+
+class _RecognitionEngine(RapidOCR):
+    def __init__(self, params: dict[str, Any]) -> None:
+        cfg = self._load_config(None, params)
+        cfg.Rec.engine_cfg = cfg.EngineConfig[cfg.Rec.engine_type.value]
+        cfg.Rec.font_path = cfg.Global.font_path
+        cfg.Rec.model_root_dir = cfg.Global.model_root_dir
+        self.text_rec = TextRecognizer(cfg.Rec)
+        self.return_word_box = False
+
+
+def _engine_params(
+    models: OCRModelSet,
+    lang: OCRLanguageMode,
+) -> dict[str, Any]:
+    rec_model = models.rec_model_for(lang)
+    rec_lang = LangRec.LATIN if lang is OCRLanguageMode.LATIN else LangRec.ESLAV
+    return {
         "Global.model_root_dir": str(models.root),
         "Global.font_path": str(models.font),
         "Global.log_level": "warning",
@@ -101,11 +161,41 @@ def build_engine(models: OCRModelSet, lang: str | OCRLanguageMode) -> RapidOCR:
         "Rec.model_type": ModelType.MOBILE,
         "Rec.model_path": str(rec_model),
     }
-    return RapidOCR(params=params)
 
 
 def build_line_detector(models: OCRModelSet) -> LineDetector:
-    return LineDetector(build_engine(models, OCRLanguageMode.CYRILLIC))
+    params = _engine_params(models, OCRLanguageMode.CYRILLIC)
+    return LineDetector(_DetectionEngine(params))
+
+
+def build_line_recognizer(
+    models: OCRModelSet,
+    lang: OCRLanguageMode,
+) -> RapidOCRLineRecognizer:
+    if lang is OCRLanguageMode.AUTO:
+        raise ValueError("AUTO OCR language requires the automatic language router")
+    model = "latin" if lang is OCRLanguageMode.LATIN else "eslav"
+    return RapidOCRLineRecognizer(
+        _RecognitionEngine(_engine_params(models, lang)),
+        model=model,
+    )
+
+
+def get_model_registry(models_dir: Path | str) -> OCRModelRegistry:
+    return _registry_for_root(Path(models_dir).resolve())
+
+
+@lru_cache(maxsize=None)
+def _registry_for_root(root: Path) -> OCRModelRegistry:
+    models = OCRModelSet(root)
+    return OCRModelRegistry(
+        detector_factory=lambda: build_line_detector(models),
+        eslav_factory=lambda: build_line_recognizer(models, OCRLanguageMode.CYRILLIC),
+        latin_factory=lambda: build_line_recognizer(models, OCRLanguageMode.LATIN),
+        ppocrv6_factory=lambda: PPOCRV6LineRecognizer(
+            PPOCRV6Recognizer(models.ppocrv6_recognizer, models.ppocrv6_dictionary)
+        ),
+    )
 
 
 def ocr_image_to_markdown(

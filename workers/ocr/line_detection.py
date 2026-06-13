@@ -38,7 +38,10 @@ class LineDetector:
                 original_width,
             )
 
-        oriented_crops, _classification = self._engine.cls_and_rotate(crops)
+        try:
+            oriented_crops, _classification = self._engine.cls_and_rotate(crops)
+        except RapidOCRError:
+            return []
         if len(boxes) != len(oriented_crops):
             raise LineDetectionError(
                 "OCR detector, cropper, and classifier returned different line counts"

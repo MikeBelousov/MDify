@@ -3,9 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
+from rapidocr.main import RapidOCRError
 
 from workers.ocr.line_detection import LineDetector
 from workers.ocr.model_registry import OCRModelRegistry
+from workers.ocr import rapidocr_engine
+from workers.ocr.language_mode import OCRLanguageMode
+from workers.ocr.rapidocr_engine import OCRModelSet
 
 
 FIRST_BOX = np.array([[10, 10], [110, 10], [110, 30], [10, 30]], dtype=np.float32)
@@ -83,6 +87,20 @@ def test_detect_lines_returns_empty_without_running_classifier() -> None:
     assert engine.classifier_calls == 0
 
 
+def test_detect_lines_returns_empty_when_classifier_has_no_output() -> None:
+    engine = FakeDetectionEngine()
+
+    def classify_empty(_crops: list[np.ndarray]):
+        engine.classifier_calls += 1
+        raise RapidOCRError("empty classifier")
+
+    engine.cls_and_rotate = classify_empty  # type: ignore[method-assign]
+
+    assert LineDetector(engine).detect(np.zeros((100, 200, 3), dtype=np.uint8)) == []
+    assert engine.detector_calls == 1
+    assert engine.classifier_calls == 1
+
+
 def test_model_registry_builds_each_model_at_most_once() -> None:
     calls: dict[str, int] = {}
 
@@ -105,3 +123,50 @@ def test_model_registry_builds_each_model_at_most_once() -> None:
     assert registry.latin() is registry.latin()
     assert registry.ppocrv6() is registry.ppocrv6()
     assert calls == {"detector": 1, "eslav": 1, "latin": 1, "ppocrv6": 1}
+
+
+def test_stage_builders_do_not_initialize_unneeded_models(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    calls: list[str] = []
+
+    class FakeDetector:
+        def __init__(self, _cfg) -> None:
+            calls.append("detector")
+
+    class FakeClassifier:
+        def __init__(self, _cfg) -> None:
+            calls.append("classifier")
+
+    class FakeRecognizer:
+        def __init__(self, _cfg) -> None:
+            calls.append("recognizer")
+
+    monkeypatch.setattr(rapidocr_engine, "TextDetector", FakeDetector)
+    monkeypatch.setattr(rapidocr_engine, "TextClassifier", FakeClassifier)
+    monkeypatch.setattr(rapidocr_engine, "TextRecognizer", FakeRecognizer)
+
+    detector = rapidocr_engine.build_line_detector(OCRModelSet(tmp_path))
+
+    assert calls == ["detector", "classifier"]
+    assert not hasattr(detector._engine, "text_rec")
+
+    calls.clear()
+    recognizer = rapidocr_engine.build_line_recognizer(
+        OCRModelSet(tmp_path),
+        OCRLanguageMode.LATIN,
+    )
+
+    assert calls == ["recognizer"]
+    assert not hasattr(recognizer._engine, "text_det")
+    assert not hasattr(recognizer._engine, "text_cls")
+
+
+def test_process_registry_reuses_one_registry_per_models_root(tmp_path) -> None:
+    rapidocr_engine._registry_for_root.cache_clear()
+
+    first = rapidocr_engine.get_model_registry(tmp_path)
+    second = rapidocr_engine.get_model_registry(tmp_path / ".")
+
+    assert first is second
