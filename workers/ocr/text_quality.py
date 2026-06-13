@@ -11,6 +11,8 @@ CANDIDATE_TIE_MARGIN = 0.03
 
 _TOKEN_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
 _REPEATED_CHARACTER_PATTERN = re.compile(r"(.)\1{3,}", re.IGNORECASE)
+_LATIN_CONFUSABLES = frozenset("AaBCcEeHKkMNOoPpTtXxYy")
+_CYRILLIC_CONFUSABLES = frozenset("АаВССсЕеНКкМНООоРрТТтХхУу")
 
 
 @dataclass(frozen=True)
@@ -78,7 +80,12 @@ def _mixed_confusable_token_ratio(text: str) -> float:
     mixed_count = 0
     for token in tokens:
         scripts = {_script(character) for character in token}
-        if "latin" in scripts and "cyrillic" in scripts:
+        mixed_scripts = "latin" in scripts and "cyrillic" in scripts
+        has_confusable_pair = (
+            any(character in _LATIN_CONFUSABLES for character in token)
+            and any(character in _CYRILLIC_CONFUSABLES for character in token)
+        )
+        if mixed_scripts and has_confusable_pair:
             mixed_count += 1
     return mixed_count / len(tokens)
 
@@ -107,7 +114,7 @@ def _replacement_or_control_ratio(text: str) -> float:
     if not text:
         return 0.0
     invalid_count = sum(
-        character == "\uFFFD" or unicodedata.category(character).startswith("C")
+        character == "\uFFFD" or unicodedata.category(character) == "Cc"
         for character in text
     )
     return invalid_count / len(text)

@@ -38,6 +38,12 @@ def test_mixed_confusable_token_needs_retry_even_with_high_confidence() -> None:
     assert "mixed-confusable-token" in result.reasons
 
 
+def test_mixed_non_confusable_token_is_not_penalized() -> None:
+    result = score_candidate("abcЖ", confidence=0.93, model="eslav")
+
+    assert "mixed-confusable-token" not in result.reasons
+
+
 def test_digits_only_candidate_uses_confidence_without_script_penalty() -> None:
     result = score_candidate("2026-06-13", confidence=0.88, model="latin")
 
@@ -57,6 +63,12 @@ def test_replacement_and_control_characters_force_retry() -> None:
 
     assert result.needs_retry
     assert "replacement-or-control" in result.reasons
+
+
+def test_unicode_format_character_is_not_treated_as_control() -> None:
+    result = score_candidate("Revenue\u200D", confidence=0.99, model="latin")
+
+    assert "replacement-or-control" not in result.reasons
 
 
 def test_repeated_character_run_is_penalized() -> None:
