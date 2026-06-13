@@ -71,17 +71,25 @@ public sealed class WorkerClientTests : IDisposable
         var runner = new FakeProcessRunner(new ProcessRunResult(0, json, ""));
         var client = new WorkerClient(@"C:\Workers\mdify-worker-lite.exe", WorkerKind.Lite, runner);
 
-        var response = await client.ConvertAsync(@"C:\in.txt", @"C:\out.md", CancellationToken.None);
+        var response = await client.ConvertAsync(
+            @"C:\in.txt",
+            @"C:\out.md",
+            new ConversionOptions(),
+            CancellationToken.None);
 
         Assert.True(response.Ok);
         Assert.Equal(@"C:\out.md", response.OutputPath);
         Assert.Equal("lite", response.Worker);
         Assert.Equal("markitdown", response.Engine);
         Assert.False(response.OcrUsed);
+        Assert.DoesNotContain("--ocr-lang", runner.LastArguments);
     }
 
-    [Fact]
-    public async Task WorkerClient_PassesOcrArguments()
+    [Theory]
+    [InlineData(OcrLanguageMode.Auto, "auto")]
+    [InlineData(OcrLanguageMode.Cyrillic, "cyrillic")]
+    [InlineData(OcrLanguageMode.Latin, "latin")]
+    public async Task WorkerClient_PassesOcrArguments(OcrLanguageMode language, string expectedValue)
     {
         const string json = """
         {"ok":true,"output_path":"C:\\out.md","input_path":"C:\\scan.png","worker":"ocr","engine":"rapidocr","ocr_used":true,"warnings":[]}
@@ -89,7 +97,11 @@ public sealed class WorkerClientTests : IDisposable
         var runner = new FakeProcessRunner(new ProcessRunResult(0, json, ""));
         var client = new WorkerClient(@"C:\Workers\mdify-worker-ocr.exe", WorkerKind.Ocr, runner);
 
-        await client.ConvertAsync(@"C:\scan.png", @"C:\out.md", CancellationToken.None);
+        await client.ConvertAsync(
+            @"C:\scan.png",
+            @"C:\out.md",
+            new ConversionOptions(language),
+            CancellationToken.None);
 
         Assert.Equal(
             new[]
@@ -98,7 +110,7 @@ public sealed class WorkerClientTests : IDisposable
                 "--output", @"C:\out.md",
                 "--format", "json",
                 "--ocr", "auto",
-                "--ocr-lang", "cyrillic",
+                "--ocr-lang", expectedValue,
                 "--dpi", "300"
             },
             runner.LastArguments);
@@ -115,10 +127,14 @@ public sealed class WorkerClientTests : IDisposable
         var runner = new FakeProcessRunner(new ProcessRunResult(0, json, ""));
         var client = new WorkerClient(@"C:\Workers\mdify-worker-ocr.exe", WorkerKind.Ocr, runner, mode);
 
-        await client.ConvertAsync(@"C:\scan.pdf", @"C:\out.md", CancellationToken.None);
+        await client.ConvertAsync(
+            @"C:\scan.pdf",
+            @"C:\out.md",
+            new ConversionOptions(OcrLanguageMode.Latin),
+            CancellationToken.None);
 
         Assert.Equal(
-            new[] { "--ocr", expectedValue, "--ocr-lang", "cyrillic", "--dpi", "300" },
+            new[] { "--ocr", expectedValue, "--ocr-lang", "latin", "--dpi", "300" },
             runner.LastArguments.TakeLast(6));
     }
 
@@ -129,7 +145,7 @@ public sealed class WorkerClientTests : IDisposable
         var client = new WorkerClient(@"C:\Workers\mdify-worker-lite.exe", WorkerKind.Lite, runner);
 
         var error = await Assert.ThrowsAsync<WorkerClientException>(() =>
-            client.ConvertAsync(@"C:\in.txt", @"C:\out.md", CancellationToken.None));
+            client.ConvertAsync(@"C:\in.txt", @"C:\out.md", new ConversionOptions(), CancellationToken.None));
 
         Assert.Equal("worker failed", error.Message);
     }
@@ -141,7 +157,7 @@ public sealed class WorkerClientTests : IDisposable
         var client = new WorkerClient(@"C:\Workers\mdify-worker-lite.exe", WorkerKind.Lite, runner);
 
         var error = await Assert.ThrowsAsync<WorkerClientException>(() =>
-            client.ConvertAsync(@"C:\in.txt", @"C:\out.md", CancellationToken.None));
+            client.ConvertAsync(@"C:\in.txt", @"C:\out.md", new ConversionOptions(), CancellationToken.None));
 
         Assert.Contains("invalid JSON", error.Message, StringComparison.OrdinalIgnoreCase);
     }

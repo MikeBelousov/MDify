@@ -16,7 +16,8 @@ final class WorkerClientTests: XCTestCase {
 
         let result = try await client.convert(
             inputURL: URL(fileURLWithPath: "/tmp/input.txt"),
-            outputURL: URL(fileURLWithPath: "/tmp/out.md")
+            outputURL: URL(fileURLWithPath: "/tmp/out.md"),
+            options: .default
         )
 
         XCTAssertTrue(result.ok)
@@ -46,7 +47,8 @@ final class WorkerClientTests: XCTestCase {
 
         _ = try await client.convert(
             inputURL: URL(fileURLWithPath: "/tmp/input.png"),
-            outputURL: URL(fileURLWithPath: "/tmp/out.md")
+            outputURL: URL(fileURLWithPath: "/tmp/out.md"),
+            options: .default
         )
 
         XCTAssertEqual(box.arguments, [
@@ -54,7 +56,7 @@ final class WorkerClientTests: XCTestCase {
             "--output", "/tmp/out.md",
             "--format", "json",
             "--ocr", "auto",
-            "--ocr-lang", "cyrillic",
+            "--ocr-lang", "auto",
             "--dpi", "300"
         ])
     }
@@ -83,18 +85,19 @@ final class WorkerClientTests: XCTestCase {
 
             _ = try await client.convert(
                 inputURL: URL(fileURLWithPath: "/tmp/input.pdf"),
-                outputURL: URL(fileURLWithPath: "/tmp/out.md")
+                outputURL: URL(fileURLWithPath: "/tmp/out.md"),
+                options: ConversionOptions(ocrLanguage: .latin)
             )
         }
 
         XCTAssertEqual(box.invocations[0].suffix(6), [
             "--ocr", "off",
-            "--ocr-lang", "cyrillic",
+            "--ocr-lang", "latin",
             "--dpi", "300"
         ])
         XCTAssertEqual(box.invocations[1].suffix(6), [
             "--ocr", "always",
-            "--ocr-lang", "cyrillic",
+            "--ocr-lang", "latin",
             "--dpi", "300"
         ])
     }
@@ -111,11 +114,38 @@ final class WorkerClientTests: XCTestCase {
         do {
             _ = try await client.convert(
                 inputURL: URL(fileURLWithPath: "/tmp/input.txt"),
-                outputURL: URL(fileURLWithPath: "/tmp/out.md")
+                outputURL: URL(fileURLWithPath: "/tmp/out.md"),
+                options: .default
             )
             XCTFail("Expected invalid JSON to throw")
         } catch let error as WorkerClientError {
             XCTAssertEqual(error, .invalidJSON("not-json"))
         }
+    }
+
+    func testLiteWorkerDoesNotReceiveOCRLanguage() async throws {
+        final class InvocationBox: @unchecked Sendable {
+            var arguments: [String] = []
+        }
+        let box = InvocationBox()
+        let response = """
+        {"ok":true,"output_path":"/tmp/out.md","input_path":"/tmp/input.txt","worker":"lite","engine":"markitdown","ocr_used":false,"warnings":[]}
+        """
+        let client = WorkerClient(
+            executableURL: URL(fileURLWithPath: "/tmp/mdify-worker-lite"),
+            kind: .lite,
+            runner: MockRunner(
+                results: ["mdify-worker-lite": ProcessResult(exitCode: 0, stdout: response, stderr: "")],
+                onRun: { _, arguments, _ in box.arguments = arguments }
+            )
+        )
+
+        _ = try await client.convert(
+            inputURL: URL(fileURLWithPath: "/tmp/input.txt"),
+            outputURL: URL(fileURLWithPath: "/tmp/out.md"),
+            options: ConversionOptions(ocrLanguage: .cyrillic)
+        )
+
+        XCTAssertFalse(box.arguments.contains("--ocr-lang"))
     }
 }

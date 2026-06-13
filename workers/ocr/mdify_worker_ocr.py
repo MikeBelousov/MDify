@@ -9,6 +9,7 @@ from workers.common.markitdown_convert import convert_with_markitdown, write_mar
 from workers.common.pdf_detect import appears_scanned_pdf
 from workers.common.result import WorkerResult
 from workers.ocr.image_ocr import ocr_image_file_to_markdown
+from workers.ocr.language_mode import parse_language_mode
 from workers.ocr.pdf_ocr import ocr_pdf_to_markdown
 
 
@@ -21,15 +22,11 @@ def default_models_dir() -> Path:
     return Path(__file__).resolve().parent / "models"
 
 
-def resolve_lang(raw_lang: str) -> str:
-    return "latin" if raw_lang == "latin" else "cyrillic"
-
-
 def convert(args) -> WorkerResult:
     input_path = args.input_path
     output_path = args.output_path
     models_dir = Path(args.models_dir) if args.models_dir else default_models_dir()
-    lang = resolve_lang(args.ocr_lang)
+    language_mode = parse_language_mode(args.ocr_lang)
 
     if not input_path.is_file():
         return WorkerResult.error(
@@ -50,13 +47,13 @@ def convert(args) -> WorkerResult:
     try:
         ocr_used = False
         if is_image(input_path):
-            markdown = ocr_image_file_to_markdown(input_path, models_dir, lang)
+            markdown = ocr_image_file_to_markdown(input_path, models_dir, language_mode)
             ocr_used = True
             engine = "rapidocr"
         elif is_pdf(input_path) and args.ocr != "off" and (
             args.ocr == "always" or appears_scanned_pdf(input_path)
         ):
-            markdown = ocr_pdf_to_markdown(input_path, models_dir, lang, args.dpi)
+            markdown = ocr_pdf_to_markdown(input_path, models_dir, language_mode, args.dpi)
             ocr_used = True
             engine = "rapidocr"
         else:

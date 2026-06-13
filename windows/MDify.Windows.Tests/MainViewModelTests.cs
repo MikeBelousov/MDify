@@ -106,6 +106,7 @@ public sealed class MainViewModelTests : IDisposable
         public Task<WorkerResponse> ConvertAsync(
             string inputPath,
             string outputPath,
+            ConversionOptions options,
             CancellationToken cancellationToken)
         {
             throw new NotImplementedException();

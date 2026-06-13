@@ -124,4 +124,23 @@ final class ConversionServiceTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: outputURL, encoding: .utf8), "# Notes\n")
         XCTAssertEqual(service.items.first?.outputURL, outputURL)
     }
+
+    func testConversionPassesCurrentOptionsToWorker() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inputURL = directory.appendingPathComponent("scan.png")
+        FileManager.default.createFile(atPath: inputURL.path, contents: Data())
+        let worker = MockWorkerClient(behaviors: ["scan.png": .success("# Scan\n", engine: "rapidocr", ocrUsed: true)])
+        let service = ConversionService(
+            workerClient: worker,
+            options: ConversionOptions(ocrLanguage: .latin)
+        )
+        service.enqueue(files: [inputURL])
+
+        await service.convertAll(outputDirectory: directory)
+
+        let receivedOptions = await worker.receivedOptions
+        XCTAssertEqual(receivedOptions, [ConversionOptions(ocrLanguage: .latin)])
+    }
 }

@@ -9,6 +9,8 @@ import sys
 from PIL import Image, ImageDraw
 import pytest
 from workers.ocr import mdify_worker_ocr
+from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
+from workers.common.cli import build_parser
 
 
 def run_ocr(input_path: Path, output_path: Path, models_dir: Path) -> tuple[int, dict]:
@@ -28,6 +30,51 @@ def run_ocr(input_path: Path, output_path: Path, models_dir: Path) -> tuple[int,
     result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     assert result.stdout.strip(), result.stderr
     return result.returncode, json.loads(result.stdout)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("auto", OCRLanguageMode.AUTO),
+        ("cyrillic", OCRLanguageMode.CYRILLIC),
+        ("latin", OCRLanguageMode.LATIN),
+    ],
+)
+def test_parse_language_mode(raw: str, expected: OCRLanguageMode) -> None:
+    assert parse_language_mode(raw) is expected
+
+
+def test_ocr_language_defaults_to_auto() -> None:
+    args = build_parser("ocr").parse_args(["--input", "in.png", "--output", "out.md"])
+
+    assert args.ocr_lang is OCRLanguageMode.AUTO
+
+
+def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    input_path = tmp_path / "scan.png"
+    output_path = tmp_path / "scan.md"
+    input_path.write_bytes(b"image")
+    captured: list[OCRLanguageMode] = []
+
+    def fake_ocr(_input_path: Path, _models_dir: Path, language_mode: OCRLanguageMode) -> str:
+        captured.append(language_mode)
+        return "# Text\n"
+
+    monkeypatch.setattr(mdify_worker_ocr, "ocr_image_file_to_markdown", fake_ocr)
+
+    result = mdify_worker_ocr.convert(
+        argparse.Namespace(
+            input_path=input_path,
+            output_path=output_path,
+            models_dir=None,
+            ocr="auto",
+            ocr_lang="auto",
+            dpi=300,
+        )
+    )
+
+    assert result.ok is True
+    assert captured == [OCRLanguageMode.AUTO]
 
 
 def test_ocr_worker_reports_missing_models_for_image(tmp_path: Path) -> None:

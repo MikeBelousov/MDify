@@ -78,6 +78,28 @@ public sealed class ConversionServiceTests : IDisposable
         Assert.Equal(ConversionStatus.Cancelled, service.Items[1].Status);
     }
 
+    [Fact]
+    public void Options_DefaultToAuto()
+    {
+        var service = new ConversionService(new QueueWorker());
+
+        Assert.Equal(OcrLanguageMode.Auto, service.Options.OcrLanguage);
+    }
+
+    [Fact]
+    public async Task ConvertAll_PassesSelectedOptionsToWorker()
+    {
+        var input = Touch("scan.png");
+        var worker = new QueueWorker();
+        var options = new ConversionOptions(OcrLanguageMode.Latin);
+        var service = new ConversionService(worker) { Options = options };
+        service.Items.Add(new ConversionItem(input));
+
+        await service.ConvertAllAsync(_root, CancellationToken.None);
+
+        Assert.Equal(new[] { options }, worker.ReceivedOptions);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
@@ -116,12 +138,16 @@ public sealed class ConversionServiceTests : IDisposable
 
         public List<string> Inputs { get; } = new();
 
+        public List<ConversionOptions> ReceivedOptions { get; } = new();
+
         public Task<WorkerResponse> ConvertAsync(
             string inputPath,
             string outputPath,
+            ConversionOptions options,
             CancellationToken cancellationToken)
         {
             Inputs.Add(inputPath);
+            ReceivedOptions.Add(options);
             if (_ok)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);

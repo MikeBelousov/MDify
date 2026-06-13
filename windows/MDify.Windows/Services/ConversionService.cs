@@ -12,13 +12,17 @@ public sealed class ConversionService
 
     public ConversionService(
         IWorkerConverting? workerClient = null,
-        OutputFileNamer? namer = null)
+        OutputFileNamer? namer = null,
+        ConversionOptions? options = null)
     {
         _workerClient = workerClient ?? CreateDefaultWorkerClient();
         _namer = namer ?? new OutputFileNamer();
+        Options = options ?? new ConversionOptions();
     }
 
     public ObservableCollection<ConversionItem> Items { get; } = new();
+
+    public ConversionOptions Options { get; set; }
 
     public void EnqueueFiles(IEnumerable<string> filePaths)
     {
@@ -113,7 +117,7 @@ public sealed class ConversionService
 
         try
         {
-            var response = await _workerClient.ConvertAsync(item.InputPath, outputPath, cancellationToken);
+            var response = await _workerClient.ConvertAsync(item.InputPath, outputPath, Options, cancellationToken);
             if (!response.Ok)
             {
                 Items[index] = Items[index] with
