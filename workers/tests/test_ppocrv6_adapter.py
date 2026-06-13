@@ -115,3 +115,12 @@ def test_pads_batch_with_normalized_zero(tmp_path: Path) -> None:
 
     short_image_padding = session.feeds[0]["images"][0, :, :, -1]
     assert np.all(short_image_padding == 0.0)
+
+
+def test_caps_dynamic_width_for_extreme_aspect_ratios(tmp_path: Path) -> None:
+    session = FakeSession(logits_for([1, 0, 0, 0]))
+    recognizer = PPOCRV6Recognizer.from_session(session, write_dictionary(tmp_path))
+
+    recognizer.recognize([Image.new("RGB", (100_000, 1), "white")])
+
+    assert session.feeds[0]["images"].shape == (1, 3, 48, 2048)

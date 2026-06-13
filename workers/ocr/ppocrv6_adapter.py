@@ -13,6 +13,8 @@ class PPOCRV6OutputError(RuntimeError):
 
 
 class PPOCRV6Recognizer:
+    MAX_DYNAMIC_WIDTH = 2048
+
     def __init__(self, model_path: Path | str, dictionary_path: Path | str) -> None:
         import onnxruntime
 
@@ -95,7 +97,8 @@ class PPOCRV6Recognizer:
             rgb_image = pil_image.convert("RGB")
             width = max(1, round(rgb_image.width * height / max(1, rgb_image.height)))
             converted.append(rgb_image)
-            resized_widths.append(min(width, fixed_width) if fixed_width else width)
+            width_limit = fixed_width or PPOCRV6Recognizer.MAX_DYNAMIC_WIDTH
+            resized_widths.append(min(width, width_limit))
 
         batch_width = fixed_width or max(resized_widths)
         batch = np.zeros((len(images), 3, height, batch_width), dtype=np.float32)
