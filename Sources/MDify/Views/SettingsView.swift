@@ -23,6 +23,17 @@ struct SettingsView: View {
                 }
             }
 
+            if appState.isOCRVariant {
+                Section("OCR") {
+                    Picker("Text Language", selection: $appState.ocrLanguageMode) {
+                        Text("Automatic").tag(OCRLanguageMode.auto)
+                        Text("Cyrillic").tag(OCRLanguageMode.cyrillic)
+                        Text("Latin").tag(OCRLanguageMode.latin)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+
             Section("Actions") {
                 Button("Recheck Worker") {
                     Task { await appState.bootstrap() }

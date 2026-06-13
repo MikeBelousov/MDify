@@ -34,6 +34,16 @@ struct ContentView: View {
                     Label("Output", systemImage: "folder")
                 }
 
+                if appState.isOCRVariant {
+                    Picker("Text Language", selection: $appState.ocrLanguageMode) {
+                        Text("Automatic").tag(OCRLanguageMode.auto)
+                        Text("Cyrillic").tag(OCRLanguageMode.cyrillic)
+                        Text("Latin").tag(OCRLanguageMode.latin)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                }
+
                 Button {
                     Task { await appState.convertAll() }
                 } label: {
