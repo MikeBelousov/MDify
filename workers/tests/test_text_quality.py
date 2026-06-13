@@ -36,6 +36,7 @@ def test_empty_candidate_needs_retry_even_with_high_confidence(text: str) -> Non
     result = score_candidate(text, confidence=0.99, model="eslav")
 
     assert result.needs_retry
+    assert result.quality_score == 0.0
     assert "empty-text" in result.reasons
 
 

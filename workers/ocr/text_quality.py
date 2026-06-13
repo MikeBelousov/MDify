@@ -50,6 +50,8 @@ def score_candidate(text: str, *, confidence: float, model: str) -> TextQualityS
             - 0.10 * repetition_penalty,
         ),
     )
+    if not text.strip():
+        quality_score = 0.0
 
     reasons: list[str] = []
     if not text.strip():
