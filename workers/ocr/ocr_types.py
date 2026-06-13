@@ -53,3 +53,27 @@ class SelectedOCRLine:
             quality=candidate.quality,
         )
 
+
+@dataclass(frozen=True)
+class OCRMarkdownResult:
+    markdown: str
+    line_count: int = 0
+    latin_retry_count: int = 0
+    ppocrv6_retry_count: int = 0
+
+    def warnings(self, mode: str) -> list[str]:
+        warnings = [f"Smart OCR mode: {mode}."]
+        if mode == "auto":
+            warnings.extend(
+                [
+                    (
+                        f"Retried {self.latin_retry_count} of {self.line_count} "
+                        "lines with latin."
+                    ),
+                    (
+                        f"Retried {self.ppocrv6_retry_count} of {self.line_count} "
+                        "lines with PP-OCRv6."
+                    ),
+                ]
+            )
+        return warnings

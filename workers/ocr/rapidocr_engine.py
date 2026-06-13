@@ -9,12 +9,18 @@ from rapidocr.ch_ppocr_cls import TextClassifier
 from rapidocr.ch_ppocr_det import TextDetector
 from rapidocr.ch_ppocr_rec import TextRecognizer
 from rapidocr.utils.load_image import LoadImage
+from workers.ocr.auto_router import AutoOCRResult, AutoOCRRouter
 from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
 from workers.ocr.line_detection import LineDetector
-from workers.ocr.line_recognition import PPOCRV6LineRecognizer, RapidOCRLineRecognizer
+from workers.ocr.line_recognition import (
+    LineRecognizer,
+    PPOCRV6LineRecognizer,
+    RapidOCRLineRecognizer,
+)
 from workers.ocr.model_registry import OCRModelRegistry
+from workers.ocr.ocr_types import DetectedLine, OCRMarkdownResult, SelectedOCRLine
 from workers.ocr.ppocrv6_adapter import PPOCRV6Recognizer
-from workers.ocr.reading_order import markdown_from_rapidocr_output
+from workers.ocr.reading_order import markdown_from_selected_lines
 
 
 class OCRModelSet:
@@ -202,19 +208,48 @@ def ocr_image_to_markdown(
     image_path: Path,
     models_dir: Path,
     lang: str | OCRLanguageMode,
-) -> str:
+) -> OCRMarkdownResult:
+    language_mode = parse_language_mode(lang)
     models = OCRModelSet(models_dir)
-    missing = models.missing_files()
+    missing = models.missing_files(language_mode)
     if missing:
         missing_list = ", ".join(str(path) for path in missing)
         raise FileNotFoundError(f"OCR model files missing: {missing_list}")
 
-    output = build_engine(models, lang)(str(image_path))
-    markdown = markdown_from_rapidocr_output(output)
-    if markdown:
-        return markdown
-    markdown = output.to_markdown() if hasattr(output, "to_markdown") else ""
-    if markdown:
-        return markdown
-    txts = getattr(output, "txts", None) or []
-    return "\n".join(str(text) for text in txts)
+    registry = get_model_registry(models_dir)
+    lines = registry.detector().detect(image_path)
+    recognized = recognize_lines(lines, language_mode, registry)
+    return OCRMarkdownResult(
+        markdown=markdown_from_selected_lines(recognized.lines),
+        line_count=len(lines),
+        latin_retry_count=recognized.latin_retry_count,
+        ppocrv6_retry_count=recognized.ppocrv6_retry_count,
+    )
+
+
+def recognize_lines(
+    lines: list[DetectedLine],
+    language_mode: OCRLanguageMode,
+    registry: OCRModelRegistry,
+) -> AutoOCRResult:
+    if language_mode is OCRLanguageMode.AUTO:
+        return AutoOCRRouter(
+            eslav=registry.eslav,
+            latin=registry.latin,
+            ppocrv6=registry.ppocrv6,
+        ).recognize(lines)
+
+    recognizer: LineRecognizer = (
+        registry.latin()
+        if language_mode is OCRLanguageMode.LATIN
+        else registry.eslav()
+    )
+    selected = [
+        SelectedOCRLine.from_candidate(candidate)
+        for candidate in recognizer.recognize(lines)
+    ]
+    return AutoOCRResult(
+        lines=selected,
+        latin_retry_count=0,
+        ppocrv6_retry_count=0,
+    )

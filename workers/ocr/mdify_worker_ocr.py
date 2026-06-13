@@ -46,14 +46,28 @@ def convert(args) -> WorkerResult:
 
     try:
         ocr_used = False
+        warnings: list[str] = []
         if is_image(input_path):
-            markdown = ocr_image_file_to_markdown(input_path, models_dir, language_mode)
+            ocr_result = ocr_image_file_to_markdown(
+                input_path,
+                models_dir,
+                language_mode,
+            )
+            markdown = ocr_result.markdown
+            warnings = ocr_result.warnings(language_mode.value)
             ocr_used = True
             engine = "rapidocr"
         elif is_pdf(input_path) and args.ocr != "off" and (
             args.ocr == "always" or appears_scanned_pdf(input_path)
         ):
-            markdown = ocr_pdf_to_markdown(input_path, models_dir, language_mode, args.dpi)
+            ocr_result = ocr_pdf_to_markdown(
+                input_path,
+                models_dir,
+                language_mode,
+                args.dpi,
+            )
+            markdown = ocr_result.markdown
+            warnings = ocr_result.warnings(language_mode.value)
             ocr_used = True
             engine = "rapidocr"
         else:
@@ -74,6 +88,7 @@ def convert(args) -> WorkerResult:
         worker=WORKER,
         engine=engine,
         ocr_used=ocr_used,
+        warnings=warnings,
     )
 
 

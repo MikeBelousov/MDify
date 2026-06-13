@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from workers.ocr.line_recognition import LineRecognizer, OCRRecognitionError
@@ -18,9 +19,9 @@ class AutoOCRRouter:
     def __init__(
         self,
         *,
-        eslav: LineRecognizer,
-        latin: LineRecognizer,
-        ppocrv6: LineRecognizer,
+        eslav: LineRecognizer | Callable[[], LineRecognizer],
+        latin: LineRecognizer | Callable[[], LineRecognizer],
+        ppocrv6: LineRecognizer | Callable[[], LineRecognizer],
     ) -> None:
         self._eslav = eslav
         self._latin = latin
@@ -30,14 +31,19 @@ class AutoOCRRouter:
         if not lines:
             return AutoOCRResult([], latin_retry_count=0, ppocrv6_retry_count=0)
 
-        eslav = _candidate_map(lines, self._eslav.recognize(lines), "eslav")
+        eslav_recognizer = _resolve(self._eslav)
+        eslav = _candidate_map(lines, eslav_recognizer.recognize(lines), "eslav")
         selected = dict(eslav)
 
         latin_lines = [
             line for line in lines if eslav[line.index].quality.needs_retry
         ]
         latin = (
-            _candidate_map(latin_lines, self._latin.recognize(latin_lines), "latin")
+            _candidate_map(
+                latin_lines,
+                _resolve(self._latin).recognize(latin_lines),
+                "latin",
+            )
             if latin_lines
             else {}
         )
@@ -52,7 +58,7 @@ class AutoOCRRouter:
         ppocrv6 = (
             _candidate_map(
                 ppocrv6_lines,
-                self._ppocrv6.recognize(ppocrv6_lines),
+                _resolve(self._ppocrv6).recognize(ppocrv6_lines),
                 "ppocrv6",
             )
             if ppocrv6_lines
@@ -86,3 +92,11 @@ def _candidate_map(
             f"{model} recognizer did not preserve the requested line order"
         )
     return {candidate.line.index: candidate for candidate in candidates}
+
+
+def _resolve(
+    source: LineRecognizer | Callable[[], LineRecognizer],
+) -> LineRecognizer:
+    if hasattr(source, "recognize"):
+        return source  # type: ignore[return-value]
+    return source()

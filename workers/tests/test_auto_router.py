@@ -50,6 +50,28 @@ def test_auto_accepts_strong_eslav_without_fallbacks() -> None:
     assert ppocrv6.calls == []
 
 
+def test_auto_does_not_construct_unused_fallback_recognizers() -> None:
+    line = make_line(0)
+    eslav = FakeRecognizer("eslav", {0: ("Отчёт", 0.92)})
+    constructed: list[str] = []
+
+    def unused(name: str):
+        def build():
+            constructed.append(name)
+            return FakeRecognizer(name, {0: ("unused", 0.99)})
+
+        return build
+
+    result = AutoOCRRouter(
+        eslav=lambda: eslav,
+        latin=unused("latin"),
+        ppocrv6=unused("ppocrv6"),
+    ).recognize([line])
+
+    assert result.lines[0].text == "Отчёт"
+    assert constructed == []
+
+
 def test_auto_retries_weak_eslav_with_latin() -> None:
     line = make_line(0)
     eslav = FakeRecognizer("eslav", {0: ("Revenue", 0.74)})
@@ -133,6 +155,19 @@ def test_reading_order_accepts_selected_lines_and_preserves_blank_gaps() -> None
     ]
 
     assert markdown_from_selected_lines(selected) == "left right\n\nbelow"
+
+
+def test_reading_order_drops_low_quality_punctuation_only_hallucination() -> None:
+    selected = [
+        SelectedOCRLine.from_candidate(
+            OCRCandidate(make_line(0), "Revenue", 0.95, "latin")
+        ),
+        SelectedOCRLine.from_candidate(
+            OCRCandidate(make_line(1, top=50), "−", 0.45, "ppocrv6")
+        ),
+    ]
+
+    assert markdown_from_selected_lines(selected) == "Revenue"
 
 
 class FakeRecOutput:

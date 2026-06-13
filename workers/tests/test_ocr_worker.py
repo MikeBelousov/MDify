@@ -6,11 +6,13 @@ from pathlib import Path
 import subprocess
 import sys
 
+import numpy as np
 from PIL import Image, ImageDraw
 import pytest
 from rapidocr import LangCls, LangDet, LangRec, ModelType, OCRVersion
-from workers.ocr import mdify_worker_ocr, rapidocr_engine
+from workers.ocr import mdify_worker_ocr, pdf_ocr, rapidocr_engine
 from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
+from workers.ocr.ocr_types import DetectedLine, OCRCandidate, OCRMarkdownResult
 from workers.ocr.rapidocr_engine import OCRModelSet
 from workers.common.cli import build_parser
 
@@ -67,9 +69,13 @@ def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatc
     input_path.write_bytes(b"image")
     captured: list[OCRLanguageMode] = []
 
-    def fake_ocr(_input_path: Path, _models_dir: Path, language_mode: OCRLanguageMode) -> str:
+    def fake_ocr(
+        _input_path: Path,
+        _models_dir: Path,
+        language_mode: OCRLanguageMode,
+    ) -> OCRMarkdownResult:
         captured.append(language_mode)
-        return "# Text\n"
+        return OCRMarkdownResult("# Text\n", line_count=2, latin_retry_count=1)
 
     monkeypatch.setattr(mdify_worker_ocr, "ocr_image_file_to_markdown", fake_ocr)
 
@@ -86,6 +92,178 @@ def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatc
 
     assert result.ok is True
     assert captured == [OCRLanguageMode.AUTO]
+    assert result.warnings == [
+        "Smart OCR mode: auto.",
+        "Retried 1 of 2 lines with latin.",
+        "Retried 0 of 2 lines with PP-OCRv6.",
+    ]
+
+
+class FakeLineDetector:
+    def __init__(self, lines: list[DetectedLine]) -> None:
+        self.lines = lines
+        self.calls = 0
+
+    def detect(self, _image_path: Path) -> list[DetectedLine]:
+        self.calls += 1
+        return self.lines
+
+
+class FakeLineRecognizer:
+    def __init__(self, model: str, outputs: dict[int, tuple[str, float]]) -> None:
+        self.model = model
+        self.outputs = outputs
+        self.calls: list[list[DetectedLine]] = []
+
+    def recognize(self, lines: list[DetectedLine]) -> list[OCRCandidate]:
+        self.calls.append(lines)
+        return [
+            OCRCandidate(line, *self.outputs[line.index], self.model)
+            for line in lines
+        ]
+
+
+class FakeModelRegistry:
+    def __init__(
+        self,
+        detector: FakeLineDetector,
+        eslav: FakeLineRecognizer,
+        latin: FakeLineRecognizer,
+        ppocrv6: FakeLineRecognizer,
+    ) -> None:
+        self._detector = detector
+        self._eslav = eslav
+        self._latin = latin
+        self._ppocrv6 = ppocrv6
+        self.loads: list[str] = []
+
+    def detector(self):
+        self.loads.append("detector")
+        return self._detector
+
+    def eslav(self):
+        self.loads.append("eslav")
+        return self._eslav
+
+    def latin(self):
+        self.loads.append("latin")
+        return self._latin
+
+    def ppocrv6(self):
+        self.loads.append("ppocrv6")
+        return self._ppocrv6
+
+
+def fake_line(index: int = 0) -> DetectedLine:
+    return DetectedLine(
+        index=index,
+        box=((0, 0), (120, 0), (120, 24), (0, 24)),
+        crop=np.zeros((24, 120, 3), dtype=np.uint8),
+    )
+
+
+def patch_fake_registry(
+    monkeypatch: pytest.MonkeyPatch,
+    registry: FakeModelRegistry,
+) -> None:
+    monkeypatch.setattr(rapidocr_engine, "get_model_registry", lambda _path: registry)
+    monkeypatch.setattr(OCRModelSet, "missing_files", lambda _self, _lang=None: [])
+
+
+def test_auto_pipeline_loads_only_needed_recognizers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    line = fake_line()
+    registry = FakeModelRegistry(
+        FakeLineDetector([line]),
+        FakeLineRecognizer("eslav", {0: ("Отчёт", 0.94)}),
+        FakeLineRecognizer("latin", {0: ("Otchet", 0.95)}),
+        FakeLineRecognizer("ppocrv6", {0: ("Отчёт", 0.96)}),
+    )
+    patch_fake_registry(monkeypatch, registry)
+
+    result = rapidocr_engine.ocr_image_to_markdown(
+        tmp_path / "scan.png",
+        tmp_path,
+        OCRLanguageMode.AUTO,
+    )
+
+    assert result.markdown == "Отчёт"
+    assert registry.loads == ["detector", "eslav"]
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_model"),
+    [
+        (OCRLanguageMode.CYRILLIC, "eslav"),
+        (OCRLanguageMode.LATIN, "latin"),
+    ],
+)
+def test_manual_pipeline_loads_only_selected_recognizer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mode: OCRLanguageMode,
+    expected_model: str,
+) -> None:
+    line = fake_line()
+    registry = FakeModelRegistry(
+        FakeLineDetector([line]),
+        FakeLineRecognizer("eslav", {0: ("Отчёт", 0.94)}),
+        FakeLineRecognizer("latin", {0: ("Revenue", 0.95)}),
+        FakeLineRecognizer("ppocrv6", {0: ("Unused", 0.96)}),
+    )
+    patch_fake_registry(monkeypatch, registry)
+
+    rapidocr_engine.ocr_image_to_markdown(tmp_path / "scan.png", tmp_path, mode)
+
+    assert registry.loads == ["detector", expected_model]
+
+
+def test_pdf_pipeline_runs_detector_once_per_page(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    line = fake_line()
+    detector = FakeLineDetector([line])
+    latin = FakeLineRecognizer("latin", {0: ("Page", 0.95)})
+    registry = FakeModelRegistry(
+        detector,
+        FakeLineRecognizer("eslav", {0: ("Страница", 0.95)}),
+        latin,
+        FakeLineRecognizer("ppocrv6", {0: ("Page", 0.96)}),
+    )
+    patch_fake_registry(monkeypatch, registry)
+
+    class FakeBitmap:
+        def to_pil(self) -> Image.Image:
+            return Image.new("RGB", (200, 100), "white")
+
+    class FakePage:
+        def render(self, *, scale: float) -> FakeBitmap:
+            assert scale > 0
+            return FakeBitmap()
+
+    class FakeDocument:
+        def __len__(self) -> int:
+            return 2
+
+        def __getitem__(self, _index: int) -> FakePage:
+            return FakePage()
+
+    monkeypatch.setattr(pdf_ocr.pdfium, "PdfDocument", lambda _path: FakeDocument())
+
+    result = pdf_ocr.ocr_pdf_to_markdown(
+        tmp_path / "scan.pdf",
+        tmp_path,
+        OCRLanguageMode.LATIN,
+        300,
+    )
+
+    assert detector.calls == 2
+    assert len(latin.calls) == 2
+    assert result.line_count == 2
+    assert result.markdown == "## Page 1\n\nPage\n\n## Page 2\n\nPage\n"
 
 
 def test_ocr_model_set_exposes_all_required_ppocrv5_models(tmp_path: Path) -> None:

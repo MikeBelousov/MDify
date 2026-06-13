@@ -5,6 +5,7 @@ from statistics import median
 from typing import Any, Iterable
 
 from workers.ocr.ocr_types import SelectedOCRLine
+from workers.ocr.text_quality import MIN_ACCEPTABLE_QUALITY
 
 
 @dataclass(frozen=True)
@@ -43,7 +44,16 @@ def markdown_from_rapidocr_output(output: Any) -> str:
 
 
 def markdown_from_selected_lines(lines: Iterable[SelectedOCRLine]) -> str:
-    return _markdown_from_box_text_pairs((line.box, line.text) for line in lines)
+    return _markdown_from_box_text_pairs(
+        (line.box, line.text)
+        for line in lines
+        if _should_emit_selected_line(line)
+    )
+
+
+def _should_emit_selected_line(line: SelectedOCRLine) -> bool:
+    has_alphanumeric = any(character.isalnum() for character in line.text)
+    return has_alphanumeric or line.quality.quality_score >= MIN_ACCEPTABLE_QUALITY
 
 
 def _markdown_from_box_text_pairs(pairs: Iterable[tuple[Any, Any]]) -> str:
