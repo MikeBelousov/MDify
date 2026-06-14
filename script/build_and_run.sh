@@ -127,6 +127,10 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
+"${PYTHON_BIN:-python3}" "$ROOT_DIR/script/verify_macos_release.py" \
+  --app "$APP_BUNDLE" \
+  --variant "$VARIANT"
+
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }

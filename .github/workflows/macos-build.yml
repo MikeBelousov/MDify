@@ -83,6 +83,9 @@ jobs:
           PYTHON_BIN: python3
         run: ./script/build_release.sh --variant all --arch ${{ matrix.arch }}
 
+      - name: Verify release variant contracts
+        run: python3 -m pytest workers/tests/test_macos_release_contract.py -q
+
       - name: Upload archive artifacts
         uses: actions/upload-artifact@v4
         with:
