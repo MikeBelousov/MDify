@@ -71,6 +71,8 @@ def test_default_routing_and_diagnostic_are_compile_time_split() -> None:
     assert "ready_state=" in app
     assert "recognition=" in app
     assert "error_type=" in app
+    assert "Console.OpenStandardOutput()" in app
+    assert "Console.SetOut(" in app
 
 
 def test_lite_readiness_handles_every_windows_ai_terminal_state() -> None:
@@ -94,3 +96,14 @@ def test_lite_readiness_handles_every_windows_ai_terminal_state() -> None:
 
 def test_no_full_msix_or_sparse_identity_is_required() -> None:
     assert not (ROOT / "windows/identity").exists()
+
+
+def test_window_title_identifies_installed_variant() -> None:
+    xaml = (ROOT / "windows/MDify.Windows/MainWindow.xaml").read_text(encoding="utf-8")
+    view_model = (
+        ROOT / "windows/MDify.Windows/ViewModels/MainViewModel.cs"
+    ).read_text(encoding="utf-8")
+
+    assert 'Title="{Binding AppTitle}"' in xaml
+    assert '"MDify Lite"' in view_model
+    assert '"MDify OCR"' in view_model

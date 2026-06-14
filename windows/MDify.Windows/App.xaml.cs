@@ -42,7 +42,7 @@ public partial class App : Application
             return false;
         }
 
-        AttachConsole(AttachParentProcess);
+        AttachDiagnosticConsole();
         var identity = "unknown";
         var readyState = "unavailable";
         var recognition = "failure";
@@ -143,6 +143,20 @@ public partial class App : Application
             "MDify Lite OCR unavailable",
             MessageBoxButton.OK,
             MessageBoxImage.Warning);
+    }
+
+    private static void AttachDiagnosticConsole()
+    {
+        if (!AttachConsole(AttachParentProcess))
+        {
+            return;
+        }
+
+        var output = new StreamWriter(Console.OpenStandardOutput())
+        {
+            AutoFlush = true
+        };
+        Console.SetOut(output);
     }
 
     private const uint AttachParentProcess = 0xFFFFFFFF;

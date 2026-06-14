@@ -134,7 +134,8 @@ jobs:
             throw "Unexpected OCR worker found in Lite publish"
           }
           $liteModels = Get-ChildItem $lite -Recurse -File | Where-Object {
-            $_.Extension -eq ".onnx" -or $_.Name -match "PP-OCR|PaddleOCR"
+            $_.FullName.Replace("\", "/") -match "/workers/ocr/models/" -or
+            $_.Name -match "PP-OCR|PaddleOCR"
           }
           if ($liteModels) {
             throw "PaddleOCR models found in Lite publish: $($liteModels.FullName -join ', ')"

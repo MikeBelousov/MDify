@@ -155,6 +155,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         new(OcrLanguageMode.Latin, "Latin")
     ];
 
+    public string AppTitle => _appVariant == AppVariant.Lite
+        ? "MDify Lite"
+        : "MDify OCR";
+
     public bool ShowsOcrLanguageSelector => _appVariant == AppVariant.Ocr;
 
     public bool IsLanguageSelectionEnabled => ShowsOcrLanguageSelector && !IsConverting;

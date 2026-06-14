@@ -46,6 +46,7 @@ public sealed class MainViewModelTests : IDisposable
         var viewModel = MakeViewModel(appVariant: AppVariant.Ocr);
 
         Assert.True(viewModel.ShowsOcrLanguageSelector);
+        Assert.Equal("MDify OCR", viewModel.AppTitle);
         Assert.Equal(OcrLanguageMode.Auto, viewModel.SelectedOcrLanguage);
         Assert.Equal(
             new[] { "Automatic", "Cyrillic", "Latin" },
@@ -60,6 +61,7 @@ public sealed class MainViewModelTests : IDisposable
         viewModel.SelectedOcrLanguage = OcrLanguageMode.Latin;
 
         Assert.False(viewModel.ShowsOcrLanguageSelector);
+        Assert.Equal("MDify Lite", viewModel.AppTitle);
         Assert.Equal(OcrLanguageMode.Auto, viewModel.SelectedOcrLanguage);
     }
 

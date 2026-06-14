@@ -76,8 +76,11 @@ def test_windows_ci_builds_checks_and_uploads_two_inno_exe_installers() -> None:
     assert "Verify variant publish contents" in workflow
     assert "Unexpected OCR worker found in Lite publish" in workflow
     assert "PaddleOCR models found in Lite publish" in workflow
+    assert '$_.Extension -eq ".onnx"' not in workflow
+    assert "workers/ocr/models" in workflow
     assert "Unexpected Lite worker found in OCR publish" in workflow
-    assert "Windows AI assemblies found in OCR publish" in workflow
+    assert "Microsoft.WindowsAppSDK reference found in OCR publish deps.json" in workflow
+    assert "Microsoft.Graphics.Imaging" in workflow
     assert "windows/installer/MDify-Lite.iss" in workflow
     assert "windows/installer/MDify-OCR.iss" in workflow
     assert "dist/windows/installer/MDify-Windows-Lite-Setup.exe" in workflow
