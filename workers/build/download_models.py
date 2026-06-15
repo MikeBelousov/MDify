@@ -41,6 +41,22 @@ def download(url: str, destination: Path) -> None:
 def ensure_file(entry: dict, *, download_missing: bool) -> bool:
     path = MODELS_DIR / entry["path"]
     expected = entry["sha256"]
+    if entry.get("distribution") == "git-lfs":
+        if not path.exists():
+            print(
+                f"missing Git LFS OCR model: {entry['path']}; run git lfs pull",
+                file=sys.stderr,
+            )
+            return False
+        actual = sha256(path)
+        if actual != expected:
+            print(f"sha256 mismatch for {path}", file=sys.stderr)
+            print(f"expected: {expected}", file=sys.stderr)
+            print(f"actual:   {actual}", file=sys.stderr)
+            return False
+        print(f"ok: {entry['path']}")
+        return True
+
     if not path.exists():
         if not download_missing:
             print(f"missing: {path}", file=sys.stderr)

@@ -12,13 +12,23 @@ public sealed class ConversionService
 
     public ConversionService(
         IWorkerConverting? workerClient = null,
-        OutputFileNamer? namer = null)
+        OutputFileNamer? namer = null,
+        ConversionOptions? options = null)
     {
         _workerClient = workerClient ?? CreateDefaultWorkerClient();
         _namer = namer ?? new OutputFileNamer();
+        Options = options ?? new ConversionOptions();
     }
 
     public ObservableCollection<ConversionItem> Items { get; } = new();
+
+    public ConversionOptions Options { get; set; }
+
+    public OcrLanguageMode OcrLanguage
+    {
+        get => Options.OcrLanguage;
+        set => Options = new ConversionOptions(value);
+    }
 
     public void EnqueueFiles(IEnumerable<string> filePaths)
     {
@@ -77,6 +87,7 @@ public sealed class ConversionService
     {
         Directory.CreateDirectory(outputDirectory);
         var reservedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var batchOptions = Options;
 
         for (var index = 0; index < Items.Count; index++)
         {
@@ -93,7 +104,7 @@ public sealed class ConversionService
             }
 
             var outputPath = _namer.ReserveMarkdownPath(item, outputDirectory, reservedPaths);
-            await ConvertItemAsync(index, item, outputPath, cancellationToken);
+            await ConvertItemAsync(index, item, outputPath, batchOptions, cancellationToken);
         }
     }
 
@@ -101,6 +112,7 @@ public sealed class ConversionService
         int index,
         ConversionItem item,
         string outputPath,
+        ConversionOptions options,
         CancellationToken cancellationToken)
     {
         Items[index] = item with
@@ -113,7 +125,7 @@ public sealed class ConversionService
 
         try
         {
-            var response = await _workerClient.ConvertAsync(item.InputPath, outputPath, cancellationToken);
+            var response = await _workerClient.ConvertAsync(item.InputPath, outputPath, options, cancellationToken);
             if (!response.Ok)
             {
                 Items[index] = Items[index] with
@@ -193,12 +205,14 @@ public sealed class ConversionService
     private static IWorkerConverting CreateDefaultWorkerClient()
     {
         var resolver = new WorkerBundleResolver();
-        var preflightClient = resolver.CreateClient(WorkerKind.Ocr, ocrMode: WorkerOcrMode.Off);
-        var rapidOcrClient = resolver.CreateClient(WorkerKind.Ocr, ocrMode: WorkerOcrMode.Always);
+#if MDIFY_WINDOWS_LITE
+        var liteClient = resolver.CreateClient(WorkerKind.Lite);
         return new NativeOcrRoutingClient(
-            WorkerKind.Ocr,
-            preflightClient,
-            rapidOcrClient,
-            new WindowsNativeOcrService());
+            WorkerKind.Lite,
+            liteClient,
+            nativeOcr: new WindowsNativeOcrService());
+#else
+        return resolver.CreateClient(WorkerKind.Ocr, ocrMode: WorkerOcrMode.Auto);
+#endif
     }
 }

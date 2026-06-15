@@ -8,12 +8,18 @@ actor MockWorkerClient: WorkerConverting {
     }
 
     private let behaviors: [String: Behavior]
+    private(set) var receivedOptions: [ConversionOptions] = []
 
     init(behaviors: [String: Behavior]) {
         self.behaviors = behaviors
     }
 
-    func convert(inputURL: URL, outputURL: URL) async throws -> WorkerResponse {
+    func convert(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
+        receivedOptions.append(options)
         let behavior = behaviors[inputURL.lastPathComponent] ?? .success("# Default\n")
         switch behavior {
         case .success(let markdown, let engine, let ocrUsed):

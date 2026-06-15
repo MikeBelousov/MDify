@@ -124,4 +124,100 @@ final class ConversionServiceTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: outputURL, encoding: .utf8), "# Notes\n")
         XCTAssertEqual(service.items.first?.outputURL, outputURL)
     }
+
+    func testConversionPassesCurrentOptionsToWorker() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inputURL = directory.appendingPathComponent("scan.png")
+        FileManager.default.createFile(atPath: inputURL.path, contents: Data())
+        let worker = MockWorkerClient(behaviors: ["scan.png": .success("# Scan\n", engine: "rapidocr", ocrUsed: true)])
+        let service = ConversionService(
+            workerClient: worker,
+            options: ConversionOptions(ocrLanguage: .latin)
+        )
+        service.enqueue(files: [inputURL])
+
+        await service.convertAll(outputDirectory: directory)
+
+        let receivedOptions = await worker.receivedOptions
+        XCTAssertEqual(receivedOptions, [ConversionOptions(ocrLanguage: .latin)])
+    }
+
+    func testConversionSnapshotsOptionsForWholeBatch() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = directory.appendingPathComponent("first.png")
+        let second = directory.appendingPathComponent("second.png")
+        FileManager.default.createFile(atPath: first.path, contents: Data())
+        FileManager.default.createFile(atPath: second.path, contents: Data())
+        let worker = PausingWorkerClient()
+        let service = ConversionService(
+            workerClient: worker,
+            options: ConversionOptions(ocrLanguage: .latin)
+        )
+        service.enqueue(files: [first, second])
+
+        let conversion = Task {
+            await service.convertAll(outputDirectory: directory)
+        }
+        await worker.waitForFirstCall()
+        service.options = ConversionOptions(ocrLanguage: .cyrillic)
+        await worker.resumeFirstCall()
+        await conversion.value
+
+        let receivedOptions = await worker.receivedOptions
+        XCTAssertEqual(receivedOptions, [
+            ConversionOptions(ocrLanguage: .latin),
+            ConversionOptions(ocrLanguage: .latin)
+        ])
+    }
+}
+
+private actor PausingWorkerClient: WorkerConverting {
+    private(set) var receivedOptions: [ConversionOptions] = []
+    private var firstCallStarted = false
+    private var firstCallWaiters: [CheckedContinuation<Void, Never>] = []
+    private var firstCallResume: CheckedContinuation<Void, Never>?
+
+    func convert(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
+        receivedOptions.append(options)
+        if receivedOptions.count == 1 {
+            firstCallStarted = true
+            firstCallWaiters.forEach { $0.resume() }
+            firstCallWaiters.removeAll()
+            await withCheckedContinuation { continuation in
+                firstCallResume = continuation
+            }
+        }
+        try "# Converted\n".write(to: outputURL, atomically: true, encoding: .utf8)
+        return WorkerResponse(
+            ok: true,
+            outputPath: outputURL.path,
+            inputPath: inputURL.path,
+            worker: "ocr",
+            engine: "rapidocr",
+            ocrUsed: true,
+            warnings: [],
+            errorCode: nil,
+            message: nil
+        )
+    }
+
+    func waitForFirstCall() async {
+        if firstCallStarted { return }
+        await withCheckedContinuation { continuation in
+            firstCallWaiters.append(continuation)
+        }
+    }
+
+    func resumeFirstCall() {
+        firstCallResume?.resume()
+        firstCallResume = nil
+    }
 }

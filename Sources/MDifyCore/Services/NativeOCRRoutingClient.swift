@@ -33,20 +33,32 @@ public struct NativeOCRRoutingClient: WorkerConverting {
         self.nativeOCR = nativeOCR
     }
 
-    public func convert(inputURL: URL, outputURL: URL) async throws -> WorkerResponse {
+    public func convert(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
         if Self.isImage(inputURL) {
-            return try await convertWithNativeOCR(inputURL: inputURL, outputURL: outputURL)
+            return try await convertWithNativeOCR(inputURL: inputURL, outputURL: outputURL, options: options)
         }
 
         if Self.isPDF(inputURL) {
-            return try await convertPDF(inputURL: inputURL, outputURL: outputURL)
+            return try await convertPDF(inputURL: inputURL, outputURL: outputURL, options: options)
         }
 
-        return try await workerClient.convert(inputURL: inputURL, outputURL: outputURL)
+        return try await workerClient.convert(inputURL: inputURL, outputURL: outputURL, options: options)
     }
 
-    private func convertPDF(inputURL: URL, outputURL: URL) async throws -> WorkerResponse {
-        let preflightResponse = try await workerClient.convert(inputURL: inputURL, outputURL: outputURL)
+    private func convertPDF(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
+        let preflightResponse = try await workerClient.convert(
+            inputURL: inputURL,
+            outputURL: outputURL,
+            options: options
+        )
         guard preflightResponse.ok else { return preflightResponse }
 
         let markdown = (try? String(contentsOf: outputURL, encoding: .utf8)) ?? ""
@@ -54,10 +66,14 @@ public struct NativeOCRRoutingClient: WorkerConverting {
             return preflightResponse
         }
 
-        return try await convertWithNativeOCR(inputURL: inputURL, outputURL: outputURL)
+        return try await convertWithNativeOCR(inputURL: inputURL, outputURL: outputURL, options: options)
     }
 
-    private func convertWithNativeOCR(inputURL: URL, outputURL: URL) async throws -> WorkerResponse {
+    private func convertWithNativeOCR(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
         let result = try await nativeOCR.recognize(inputURL: inputURL)
         let quality = Self.quality(for: result.markdown)
         let isWeak = quality.isEmpty
@@ -65,7 +81,7 @@ public struct NativeOCRRoutingClient: WorkerConverting {
             || result.averageConfidence < Self.minimumAverageConfidence
 
         if workerKind == .ocr, isWeak {
-            return try await fallbackToRapidOCR(inputURL: inputURL, outputURL: outputURL)
+            return try await fallbackToRapidOCR(inputURL: inputURL, outputURL: outputURL, options: options)
         }
 
         guard !quality.isEmpty else {
@@ -90,9 +106,17 @@ public struct NativeOCRRoutingClient: WorkerConverting {
         )
     }
 
-    private func fallbackToRapidOCR(inputURL: URL, outputURL: URL) async throws -> WorkerResponse {
+    private func fallbackToRapidOCR(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
         let fallbackClient = rapidOCRWorkerClient ?? workerClient
-        let response = try await fallbackClient.convert(inputURL: inputURL, outputURL: outputURL)
+        let response = try await fallbackClient.convert(
+            inputURL: inputURL,
+            outputURL: outputURL,
+            options: options
+        )
         return response.appendingWarning("Apple Vision OCR was weak; used RapidOCR fallback.")
     }
 

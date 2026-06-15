@@ -13,7 +13,7 @@ final class NativeOCRRoutingClientTests: XCTestCase {
         let native = StubNativeOCR(result: NativeOCRResult(markdown: "Native recognized text\n", averageConfidence: 0.9))
         let client = NativeOCRRoutingClient(workerKind: .lite, workerClient: worker, nativeOCR: native)
 
-        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL)
+        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL, options: .default)
 
         XCTAssertEqual(response.worker, "native")
         XCTAssertEqual(response.engine, "apple-vision")
@@ -33,7 +33,7 @@ final class NativeOCRRoutingClientTests: XCTestCase {
         let native = StubNativeOCR(result: NativeOCRResult(markdown: "tiny\n", averageConfidence: 0.2))
         let client = NativeOCRRoutingClient(workerKind: .lite, workerClient: worker, nativeOCR: native)
 
-        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL)
+        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL, options: .default)
 
         XCTAssertEqual(response.worker, "native")
         XCTAssertTrue(response.warnings.contains { $0.contains("Apple Vision OCR confidence was low") })
@@ -53,7 +53,7 @@ final class NativeOCRRoutingClientTests: XCTestCase {
         let client = NativeOCRRoutingClient(workerKind: .lite, workerClient: worker, nativeOCR: native)
 
         do {
-            _ = try await client.convert(inputURL: inputURL, outputURL: outputURL)
+            _ = try await client.convert(inputURL: inputURL, outputURL: outputURL, options: .default)
             XCTFail("Expected empty native OCR to fail in Lite")
         } catch let error as NativeOCRRoutingError {
             XCTAssertEqual(error, .nativeOCRReturnedNoText)
@@ -80,7 +80,11 @@ final class NativeOCRRoutingClientTests: XCTestCase {
             nativeOCR: native
         )
 
-        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL)
+        let response = try await client.convert(
+            inputURL: inputURL,
+            outputURL: outputURL,
+            options: ConversionOptions(ocrLanguage: .latin)
+        )
 
         XCTAssertEqual(response.worker, "ocr")
         XCTAssertEqual(response.engine, "rapidocr")
@@ -90,6 +94,8 @@ final class NativeOCRRoutingClientTests: XCTestCase {
         let fallbackInvocationCount = await fallback.invocationCount
         XCTAssertEqual(preflightInvocationCount, 0)
         XCTAssertEqual(fallbackInvocationCount, 1)
+        let fallbackOptions = await fallback.receivedOptions
+        XCTAssertEqual(fallbackOptions, [ConversionOptions(ocrLanguage: .latin)])
     }
 
     func testTextPDFUsesMarkItDownPreflightAndSkipsNativeOCR() async throws {
@@ -102,7 +108,7 @@ final class NativeOCRRoutingClientTests: XCTestCase {
         let native = StubNativeOCR(result: NativeOCRResult(markdown: "Native should not run\n", averageConfidence: 0.9))
         let client = NativeOCRRoutingClient(workerKind: .ocr, workerClient: worker, nativeOCR: native)
 
-        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL)
+        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL, options: .default)
 
         XCTAssertEqual(response.worker, "ocr")
         XCTAssertEqual(response.engine, "markitdown")
@@ -129,7 +135,7 @@ final class NativeOCRRoutingClientTests: XCTestCase {
             nativeOCR: native
         )
 
-        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL)
+        let response = try await client.convert(inputURL: inputURL, outputURL: outputURL, options: .default)
 
         XCTAssertEqual(response.engine, "rapidocr")
         let preflightInvocationCount = await preflight.invocationCount
@@ -149,6 +155,7 @@ final class NativeOCRRoutingClientTests: XCTestCase {
 
 private actor SpyWorkerClient: WorkerConverting {
     private(set) var invocationCount = 0
+    private(set) var receivedOptions: [ConversionOptions] = []
     private let markdown: String
     private let engine: String
     private let ocrUsed: Bool
@@ -159,8 +166,13 @@ private actor SpyWorkerClient: WorkerConverting {
         self.ocrUsed = ocrUsed
     }
 
-    func convert(inputURL: URL, outputURL: URL) async throws -> WorkerResponse {
+    func convert(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
         invocationCount += 1
+        receivedOptions.append(options)
         try FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try markdown.write(to: outputURL, atomically: true, encoding: .utf8)
         return WorkerResponse(

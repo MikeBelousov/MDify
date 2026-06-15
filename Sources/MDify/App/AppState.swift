@@ -27,18 +27,39 @@ final class AppState: ObservableObject {
     @Published var outputDirectory: URL? = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
     @Published var setupLog = ""
     @Published var importSummary: String?
+    @Published var ocrLanguageMode: OCRLanguageMode {
+        didSet {
+            guard workerKind == .ocr else { return }
+            settingsStore.ocrLanguageMode = ocrLanguageMode
+            conversionService.options.ocrLanguage = ocrLanguageMode
+        }
+    }
 
     let conversionService: ConversionService
+    let workerKind: WorkerKind
     private let folderImportService: FolderImportService
     private let outputRevealPolicy = OutputRevealPolicy()
     private let workerResolver: WorkerBundleResolver
+    private let settingsStore: UserSettingsStore
 
     init(workerResolver: WorkerBundleResolver = WorkerBundleResolver()) {
+        let settingsStore = UserSettingsStore(workerKind: workerResolver.workerKind)
+        let ocrLanguageMode = settingsStore.ocrLanguageMode
         self.workerResolver = workerResolver
-        self.conversionService = ConversionService(workerClient: workerResolver.makeNativeRoutingClient())
+        self.settingsStore = settingsStore
+        self.workerKind = workerResolver.workerKind
+        self.ocrLanguageMode = ocrLanguageMode
+        self.conversionService = ConversionService(
+            workerClient: workerResolver.makeConversionRoute().client,
+            options: ConversionOptions(ocrLanguage: ocrLanguageMode)
+        )
         self.folderImportService = FolderImportService(
             policy: ConvertibleFilePolicy(workerKind: workerResolver.workerKind)
         )
+    }
+
+    var isOCRVariant: Bool {
+        workerKind == .ocr
     }
 
     func bootstrapIfNeeded() async {

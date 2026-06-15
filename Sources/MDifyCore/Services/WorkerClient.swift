@@ -7,7 +7,11 @@ public enum WorkerOCRMode: String, Equatable, Sendable {
 }
 
 public protocol WorkerConverting: Sendable {
-    func convert(inputURL: URL, outputURL: URL) async throws -> WorkerResponse
+    func convert(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse
 }
 
 public struct WorkerClient: WorkerConverting {
@@ -28,14 +32,22 @@ public struct WorkerClient: WorkerConverting {
         self.runner = runner
     }
 
-    public func convert(inputURL: URL, outputURL: URL) async throws -> WorkerResponse {
+    public func convert(
+        inputURL: URL,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async throws -> WorkerResponse {
         var arguments = [
             "--input", inputURL.path,
             "--output", outputURL.path,
             "--format", "json"
         ]
         if kind == .ocr {
-            arguments += ["--ocr", ocrMode.rawValue, "--ocr-lang", "cyrillic", "--dpi", "300"]
+            arguments += [
+                "--ocr", ocrMode.rawValue,
+                "--ocr-lang", options.ocrLanguage.rawValue,
+                "--dpi", "300"
+            ]
         }
 
         let result = try await runner.run(

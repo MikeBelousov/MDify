@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from statistics import median
-from typing import Any
+from typing import Any, Iterable
+
+from workers.ocr.ocr_types import SelectedOCRLine
+from workers.ocr.text_quality import MIN_ACCEPTABLE_QUALITY
 
 
 @dataclass(frozen=True)
@@ -37,8 +40,25 @@ def markdown_from_rapidocr_output(output: Any) -> str:
     if not box_list or len(box_list) != len(text_list):
         return ""
 
+    return _markdown_from_box_text_pairs(zip(box_list, text_list, strict=True))
+
+
+def markdown_from_selected_lines(lines: Iterable[SelectedOCRLine]) -> str:
+    return _markdown_from_box_text_pairs(
+        (line.box, line.text)
+        for line in lines
+        if _should_emit_selected_line(line)
+    )
+
+
+def _should_emit_selected_line(line: SelectedOCRLine) -> bool:
+    has_alphanumeric = any(character.isalnum() for character in line.text)
+    return has_alphanumeric or line.quality.quality_score >= MIN_ACCEPTABLE_QUALITY
+
+
+def _markdown_from_box_text_pairs(pairs: Iterable[tuple[Any, Any]]) -> str:
     words: list[OCRWord] = []
-    for box, raw_text in zip(box_list, text_list):
+    for box, raw_text in pairs:
         text = str(raw_text).strip()
         if not text:
             continue

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PRODUCT="MDify"
 MIN_SYSTEM_VERSION="14.0"
-APP_VERSION="${APP_VERSION:-0.2.0}"
+APP_VERSION="${APP_VERSION:-0.4.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-2}"
 DIST_DIR="$ROOT_DIR/dist"
 
@@ -203,6 +203,9 @@ build_variant() {
   write_info_plist "$app_contents/Info.plist" "$app_name" "$bundle_id" "$worker_kind"
   verify_single_arch "$app_binary" "$target_arch" "App binary"
   verify_single_arch "$app_resources/Workers/$worker_name/$worker_name" "$target_arch" "Worker"
+  "${PYTHON_BIN:-python3}" "$ROOT_DIR/script/verify_macos_release.py" \
+    --app "$app_bundle" \
+    --variant "$worker_kind"
   ditto -c -k --keepParent "$app_bundle" "$DIST_DIR/$zip_name"
 
   echo "Built $app_bundle"

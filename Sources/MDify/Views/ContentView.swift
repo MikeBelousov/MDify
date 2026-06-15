@@ -34,6 +34,24 @@ struct ContentView: View {
                     Label("Output", systemImage: "folder")
                 }
 
+                if appState.isOCRVariant {
+                    Menu {
+                        Picker("Text Language", selection: $appState.ocrLanguageMode) {
+                            ForEach(OCRLanguageMode.allCases, id: \.self) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                    } label: {
+                        Label(
+                            "Text Language: \(appState.ocrLanguageMode.displayName)",
+                            systemImage: "character.book.closed"
+                        )
+                    }
+                    .disabled(conversionService.isConverting)
+                    .accessibilityLabel("Text Language")
+                    .accessibilityValue(appState.ocrLanguageMode.displayName)
+                }
+
                 Button {
                     Task { await appState.convertAll() }
                 } label: {

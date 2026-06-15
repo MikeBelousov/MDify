@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
 
@@ -36,12 +36,12 @@ jobs:
           }
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.x"
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: "pip"
@@ -50,7 +50,7 @@ jobs:
             workers/ocr/requirements-ocr.txt
 
       - name: Cache NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('windows/**/*.csproj') }}
@@ -58,7 +58,7 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Cache OCR models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: workers/ocr/models
           key: ocr-models-${{ hashFiles('workers/ocr/model_manifest.json') }}
@@ -67,11 +67,11 @@ jobs:
         shell: pwsh
         run: choco install innosetup -y
 
-      - name: Restore Windows solution
-        run: dotnet restore windows/MDify.Windows.sln
+      - name: Test Windows OCR solution
+        run: dotnet test windows/MDify.Windows.sln -c Release -p:MDifyVariant=Ocr
 
-      - name: Test Windows solution
-        run: dotnet test windows/MDify.Windows.sln -c Release --no-restore
+      - name: Test Windows Lite solution
+        run: dotnet test windows/MDify.Windows.sln -c Release -p:MDifyVariant=Lite
 
       - name: Install worker test dependencies
         shell: pwsh
@@ -80,12 +80,18 @@ jobs:
           python -m pip install -r workers/ocr/requirements-ocr.txt
           python -m pip install pytest
 
+      - name: Download OCR models
+        shell: pwsh
+        run: python workers/build/download_models.py
+
       - name: Test Python workers
         shell: pwsh
         run: |
           python -m pytest workers/tests/test_lite_worker.py -q
           python -m pytest workers/tests/test_ocr_worker.py -q
+          python -m pytest workers/tests/test_ocr_benchmark.py -q
           python -m pytest workers/tests/test_windows_worker_build_script.py -q
+          python -m pytest windows/tests/test_installer_contract.py windows/tests/test_windows_variant_contract.py -q
 
       - name: Build lite worker
         shell: pwsh
@@ -95,45 +101,107 @@ jobs:
         shell: pwsh
         run: ./workers/build/build_worker_windows.ps1 -Variant ocr -Python python
 
-      - name: Publish Windows app
+      - name: Publish Windows Lite app
+        shell: pwsh
+        run: dotnet publish windows/MDify.Windows/MDify.Windows.csproj -c Release -r win-x64 --self-contained true -p:MDifyVariant=Lite -o dist/windows/lite/app
+
+      - name: Publish Windows OCR app
+        shell: pwsh
+        run: dotnet publish windows/MDify.Windows/MDify.Windows.csproj -c Release -r win-x64 --self-contained true -p:MDifyVariant=Ocr -o dist/windows/ocr/app
+
+      - name: Copy variant workers and notices
         shell: pwsh
         run: |
-          dotnet publish windows/MDify.Windows/MDify.Windows.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -o dist/windows/app
+          New-Item -ItemType Directory -Force -Path dist/windows/lite/app/Workers | Out-Null
+          New-Item -ItemType Directory -Force -Path dist/windows/ocr/app/Workers | Out-Null
+          Copy-Item -Recurse -Force .build/workers/win-x64/mdify-worker-lite dist/windows/lite/app/Workers/
+          Copy-Item -Recurse -Force .build/workers/win-x64/mdify-worker-ocr dist/windows/ocr/app/Workers/
+          Copy-Item -Force LICENSE dist/windows/lite/app/
+          Copy-Item -Force ThirdPartyNotices.md dist/windows/lite/app/
+          Copy-Item -Force LICENSE dist/windows/ocr/app/
+          Copy-Item -Force ThirdPartyNotices.md dist/windows/ocr/app/
 
-      - name: Copy workers and notices
+      - name: Verify variant publish contents
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist/windows/app/Workers | Out-Null
-          Copy-Item -Recurse -Force .build/workers/win-x64/mdify-worker-lite dist/windows/app/Workers/
-          Copy-Item -Recurse -Force .build/workers/win-x64/mdify-worker-ocr dist/windows/app/Workers/
-          Copy-Item -Force LICENSE dist/windows/app/
-          Copy-Item -Force ThirdPartyNotices.md dist/windows/app/
+          $lite = "dist/windows/lite/app"
+          $ocr = "dist/windows/ocr/app"
 
-      - name: Build installer
+          if (-not (Test-Path "$lite/Workers/mdify-worker-lite")) {
+            throw "Expected Lite worker missing from Lite publish"
+          }
+          if (Test-Path "$lite/Workers/mdify-worker-ocr") {
+            throw "Unexpected OCR worker found in Lite publish"
+          }
+          $liteModels = Get-ChildItem $lite -Recurse -File | Where-Object {
+            $_.FullName.Replace("\", "/") -match "/workers/ocr/models/" -or
+            $_.Name -match "PP-OCR|PaddleOCR"
+          }
+          if ($liteModels) {
+            throw "PaddleOCR models found in Lite publish: $($liteModels.FullName -join ', ')"
+          }
+
+          if (-not (Test-Path "$ocr/Workers/mdify-worker-ocr")) {
+            throw "Expected OCR worker missing from OCR publish"
+          }
+          if (Test-Path "$ocr/Workers/mdify-worker-lite") {
+            throw "Unexpected Lite worker found in OCR publish"
+          }
+          $ocrDeps = Get-ChildItem $ocr -Recurse -File -Filter "*.deps.json"
+          if (-not $ocrDeps) {
+            throw "Expected a deps.json file in OCR publish"
+          }
+          $windowsAppSdkReferences = Select-String -Path $ocrDeps.FullName -Pattern "Microsoft.WindowsAppSDK"
+          if ($windowsAppSdkReferences) {
+            throw "Microsoft.WindowsAppSDK reference found in OCR publish deps.json"
+          }
+          $forbiddenOcrAssemblies = Get-ChildItem $ocr -Recurse -File | Where-Object {
+            $_.Name -like "Microsoft.Windows.AI*.dll" -or
+            $_.Name -like "Microsoft.Graphics.Imaging*.dll"
+          }
+          if ($forbiddenOcrAssemblies) {
+            throw "Windows AI or imaging assemblies found in OCR publish: $($forbiddenOcrAssemblies.FullName -join ', ')"
+          }
+
+      - name: Build Inno installers
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          & $iscc "/DAppVersion=$env:APP_VERSION" windows/installer/MDify.iss
+          & $iscc "/DAppVersion=$env:APP_VERSION" windows/installer/MDify-Lite.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Lite Inno Setup build failed with exit code $LASTEXITCODE"
+          }
+          & $iscc "/DAppVersion=$env:APP_VERSION" windows/installer/MDify-OCR.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "OCR Inno Setup build failed with exit code $LASTEXITCODE"
+          }
 
-      - name: Create portable zip
+      - name: Report release asset sizes
         shell: pwsh
-        run: Compress-Archive -Path dist/windows/app/* -DestinationPath dist/windows/MDify-Windows-Portable.zip -Force
+        run: |
+          "### Windows release sizes" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Asset | Bytes |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| --- | ---: |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-Item `
+            dist/windows/installer/MDify-Windows-Lite-Setup.exe, `
+            dist/windows/installer/MDify-Windows-OCR-Setup.exe |
+            ForEach-Object {
+              "$($_.Name)=$($_.Length)"
+              "| ``$($_.Name)`` | $($_.Length) |" |
+                Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
 
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
+      - name: Upload Lite installer
+        uses: actions/upload-artifact@v7
         with:
-          name: MDifySetup
-          path: dist/windows/installer/MDifySetup.exe
+          name: MDify-Windows-Lite-Setup
+          path: dist/windows/installer/MDify-Windows-Lite-Setup.exe
 
-      - name: Upload portable zip
-        uses: actions/upload-artifact@v4
+      - name: Upload OCR installer
+        uses: actions/upload-artifact@v7
         with:
-          name: MDify-Windows-Portable
-          path: dist/windows/MDify-Windows-Portable.zip
+          name: MDify-Windows-OCR-Setup
+          path: dist/windows/installer/MDify-Windows-OCR-Setup.exe
 
       - name: Upload release assets
         if: github.ref_type == 'tag'
@@ -146,5 +214,6 @@ jobs:
             gh release create $env:GITHUB_REF_NAME --verify-tag --latest --title "MDify $env:GITHUB_REF_NAME" --notes "Release assets are uploaded by CI."
           }
           gh release upload $env:GITHUB_REF_NAME `
-            dist/windows/installer/MDifySetup.exe `
+            dist/windows/installer/MDify-Windows-Lite-Setup.exe `
+            dist/windows/installer/MDify-Windows-OCR-Setup.exe `
             --clobber

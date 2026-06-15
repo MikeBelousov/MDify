@@ -72,4 +72,50 @@ final class WorkerBundleResolverTests: XCTestCase {
         XCTAssertEqual(client.kind, .ocr)
         XCTAssertEqual(client.ocrMode, .off)
     }
+
+    func testLiteVariantBuildsNativeRoutingClient() {
+        let resolver = WorkerBundleResolver(
+            bundleURL: URL(fileURLWithPath: "/tmp/TestResources", isDirectory: true),
+            workerKind: .lite
+        )
+        var nativeOCRCreationCount = 0
+
+        let route = resolver.makeConversionRoute(nativeOCRFactory: {
+            nativeOCRCreationCount += 1
+            return VisionOCRService()
+        })
+
+        XCTAssertEqual(route.kind, .nativeLite)
+        XCTAssertTrue(route.client is NativeOCRRoutingClient)
+        XCTAssertEqual(nativeOCRCreationCount, 1)
+    }
+
+    func testOCRVariantBuildsDirectWorkerRoute() {
+        let resolver = WorkerBundleResolver(
+            bundleURL: URL(fileURLWithPath: "/tmp/TestResources", isDirectory: true),
+            workerKind: .ocr
+        )
+
+        let route = resolver.makeConversionRoute()
+
+        XCTAssertEqual(route.kind, .directOCRWorker)
+        let client = route.client as? WorkerClient
+        XCTAssertEqual(client?.kind, .ocr)
+        XCTAssertEqual(client?.ocrMode, .auto)
+    }
+
+    func testOCRVariantDoesNotCreateNativeOCR() {
+        let resolver = WorkerBundleResolver(
+            bundleURL: URL(fileURLWithPath: "/tmp/TestResources", isDirectory: true),
+            workerKind: .ocr
+        )
+        var nativeOCRCreationCount = 0
+
+        _ = resolver.makeConversionRoute(nativeOCRFactory: {
+            nativeOCRCreationCount += 1
+            return VisionOCRService()
+        })
+
+        XCTAssertEqual(nativeOCRCreationCount, 0)
+    }
 }

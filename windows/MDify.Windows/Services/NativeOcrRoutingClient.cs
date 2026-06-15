@@ -49,30 +49,32 @@ public sealed class NativeOcrRoutingClient : IWorkerConverting
     public async Task<WorkerResponse> ConvertAsync(
         string inputPath,
         string outputPath,
+        ConversionOptions options,
         CancellationToken cancellationToken)
     {
         if (IsImage(inputPath))
         {
-            return await ConvertWithNativeOcrAsync(inputPath, outputPath, cancellationToken)
+            return await ConvertWithNativeOcrAsync(inputPath, outputPath, options, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         if (IsPdf(inputPath))
         {
-            return await ConvertPdfAsync(inputPath, outputPath, cancellationToken)
+            return await ConvertPdfAsync(inputPath, outputPath, options, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        return await _workerClient.ConvertAsync(inputPath, outputPath, cancellationToken)
+        return await _workerClient.ConvertAsync(inputPath, outputPath, options, cancellationToken)
             .ConfigureAwait(false);
     }
 
     private async Task<WorkerResponse> ConvertPdfAsync(
         string inputPath,
         string outputPath,
+        ConversionOptions options,
         CancellationToken cancellationToken)
     {
-        var preflightResponse = await _workerClient.ConvertAsync(inputPath, outputPath, cancellationToken)
+        var preflightResponse = await _workerClient.ConvertAsync(inputPath, outputPath, options, cancellationToken)
             .ConfigureAwait(false);
         if (!preflightResponse.Ok)
         {
@@ -85,13 +87,14 @@ public sealed class NativeOcrRoutingClient : IWorkerConverting
             return preflightResponse;
         }
 
-        return await ConvertWithNativeOcrAsync(inputPath, outputPath, cancellationToken)
+        return await ConvertWithNativeOcrAsync(inputPath, outputPath, options, cancellationToken)
             .ConfigureAwait(false);
     }
 
     private async Task<WorkerResponse> ConvertWithNativeOcrAsync(
         string inputPath,
         string outputPath,
+        ConversionOptions options,
         CancellationToken cancellationToken)
     {
         NativeOcrResult result;
@@ -107,6 +110,7 @@ public sealed class NativeOcrRoutingClient : IWorkerConverting
                     inputPath,
                     outputPath,
                     "Windows Text Recognizer failed; used RapidOCR fallback.",
+                    options,
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -132,6 +136,7 @@ public sealed class NativeOcrRoutingClient : IWorkerConverting
                 inputPath,
                 outputPath,
                 "Windows Text Recognizer was weak; used RapidOCR fallback.",
+                options,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -167,6 +172,7 @@ public sealed class NativeOcrRoutingClient : IWorkerConverting
         string inputPath,
         string outputPath,
         string warning,
+        ConversionOptions options,
         CancellationToken cancellationToken)
     {
         if (_rapidOcrWorkerClient is null)
@@ -174,7 +180,7 @@ public sealed class NativeOcrRoutingClient : IWorkerConverting
             throw new NativeOcrRoutingException("RapidOCR fallback worker is not bundled.");
         }
 
-        var response = await _rapidOcrWorkerClient.ConvertAsync(inputPath, outputPath, cancellationToken)
+        var response = await _rapidOcrWorkerClient.ConvertAsync(inputPath, outputPath, options, cancellationToken)
             .ConfigureAwait(false);
         return response with { Warnings = response.Warnings.Concat(new[] { warning }).ToArray() };
     }

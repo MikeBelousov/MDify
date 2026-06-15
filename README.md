@@ -1,22 +1,30 @@
 # MDify
 
-MDify is a native desktop app for converting local documents to Markdown.
+MDify turns documents into Markdown on macOS and Windows. Everything runs
+locally, so your files are never uploaded anywhere.
 
-The macOS app is built with SwiftUI. The Windows preview app is built with WPF.
-Both use bundled Python workers for document conversion.
+## Download
 
-## Install
-
-Download release assets from the latest GitHub release:
+Get the latest version from:
 
 https://github.com/MikeBelousov/MDify/releases/latest
 
+Not sure which one to choose?
+
+| Version | Best for |
+| --- | --- |
+| macOS Lite | Most Mac users. It uses Apple's built-in OCR. |
+| macOS OCR | Scans and images that need stronger OCR or manual language selection. |
+| Windows OCR | Most Windows users. It works on Windows 10 and 11. |
+| Windows Lite | Supported Copilot+ PCs that can use Windows AI OCR. |
+
+The OCR versions are larger because they include all recognition models and
+work without an internet connection.
+
 ### macOS
 
-- `MDify-Lite-AppleSilicon.zip`: smaller build for Apple Silicon Macs.
-- `MDify-Lite-Intel.zip`: smaller build for Intel Macs.
-- `MDify-OCR-AppleSilicon.zip`: larger build with local RapidOCR models for Apple Silicon Macs.
-- `MDify-OCR-Intel.zip`: larger build with local RapidOCR models for Intel Macs.
+- Apple Silicon: `MDify-Lite-AppleSilicon.zip` or `MDify-OCR-AppleSilicon.zip`
+- Intel: `MDify-Lite-Intel.zip` or `MDify-OCR-Intel.zip`
 
 Unzip it, move the app to `/Applications`, and open it.
 
@@ -33,51 +41,31 @@ xattr -dr com.apple.quarantine "/Applications/MDify OCR.app"
 open -a "MDify OCR"
 ```
 
-### Windows Preview
+### Windows
 
-The Windows build is distributed as an unsigned preview for Windows 11 x64:
+- `MDify-Windows-OCR-Setup.exe`: recommended for most Windows 10 and 11 PCs.
+- `MDify-Windows-Lite-Setup.exe`: for supported Windows 11 Copilot+ PCs.
 
-- `MDifySetup.exe`: installs MDify to `%LOCALAPPDATA%\Programs\MDify`.
+Both are regular `.exe` installers and can be installed side by side. Windows
+SmartScreen may show a warning because the installers are not signed yet.
 
-Windows SmartScreen may warn because the preview executable is unsigned. Native
-Windows AI OCR is attempted first for images and scanned PDFs, and may need
-model preparation the first time it runs. If Windows AI OCR is unavailable,
-blocked by capability/model readiness, or returns weak text, MDify falls back to
-the bundled RapidOCR worker.
+Windows Lite requires a Copilot+ PC with a compatible NPU and a supported
+Windows 11 25H2 build. It will not work on every Windows 11 computer. Windows
+OCR works on Windows 10 version 1809 and newer.
 
-Native OCR can be checked from the command line:
+To check whether Windows AI OCR is available:
 
 ```powershell
 MDify.Windows.exe --diagnose-native-ocr "C:\path\sample.png"
 ```
 
-## Requirements
-
-- macOS 14+
-- Windows 11 x64 for the Windows preview build.
-
-## Variants
-
-`MDify Lite.app` supports document conversion and native Apple Vision OCR:
-
-- `pdf`, `docx`, `pptx`, `xlsx`, `xls`
-- `html`, `htm`, `csv`, `json`, `xml`, `txt`, `md`
-- `epub`, `zip`
-- `jpg`, `jpeg`, `png`, `tif`, `tiff`, `webp`, `bmp`
-
-`MDify OCR.app` supports the same formats and adds RapidOCR fallback via
-ONNX Runtime and pypdfium2 when Apple Vision output is weak.
-
-`MDify.Windows.exe` uses the OCR policy by default. It supports the same input
-formats, uses Windows AI Text Recognizer when available, and falls back to the
-bundled RapidOCR worker when native OCR is unavailable or weak.
-
 ## Features
 
 - Add individual local files.
 - Add a whole folder from the toolbar, menu, or drag-and-drop.
-- Skip unsupported, hidden, system, package, and symlink entries during folder import.
-- Confirm whether folder import should include subfolders.
+- Convert documents, spreadsheets, presentations, web pages, ebooks, and images.
+- Recognize text in images and scanned PDFs.
+- Choose Automatic, Cyrillic, or Latin recognition in OCR versions.
 - Preserve folder structure when writing Markdown outputs.
 - Preview, copy, and reveal generated Markdown.
 
@@ -85,16 +73,25 @@ Folder imports are written under the selected output folder. By default that is
 Downloads. For example, importing `Research/Notes/source.txt` writes to
 `~/Downloads/Research/Notes/source.md`.
 
+Supported formats include `pdf`, `docx`, `pptx`, `xlsx`, `xls`, `html`, `csv`,
+`json`, `xml`, `txt`, `md`, `epub`, `zip`, `jpg`, `png`, `tiff`, `webp`, and
+`bmp`.
 
-## Homebrew Install
-
-The intended first release install commands are:
+## Homebrew
 
 ```bash
 brew install --cask mikebelousov/tap/mdify
 brew install --cask mikebelousov/tap/mdify-ocr
 ```
 
+## Requirements
+
+- macOS 14 or newer
+- Windows OCR: Windows 10 version 1809 or newer, x64
+- Windows Lite: supported Windows 11 Copilot+ PC with a compatible NPU
+
+For OCR quality measurements and release verification details, see
+[`docs/ocr-quality-report.md`](docs/ocr-quality-report.md).
 
 ## License
 

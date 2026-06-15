@@ -23,6 +23,18 @@ struct SettingsView: View {
                 }
             }
 
+            if appState.isOCRVariant {
+                Section("OCR") {
+                    Picker("Text Language", selection: $appState.ocrLanguageMode) {
+                        ForEach(OCRLanguageMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(appState.conversionService.isConverting)
+                }
+            }
+
             Section("Actions") {
                 Button("Recheck Worker") {
                     Task { await appState.bootstrap() }

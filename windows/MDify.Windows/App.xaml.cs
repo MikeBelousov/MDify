@@ -1,5 +1,8 @@
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using MDify.Windows.Services;
+using MDify.Windows.Support;
 
 namespace MDify.Windows;
 
@@ -17,44 +20,149 @@ public partial class App : Application
             args.Handled = true;
         };
 
-        if (TryRunNativeOcrDiagnostic(e.Args))
+#if MDIFY_WINDOWS_LITE
+        if (TryRunNativeOcrDiagnostic(e.Args, out var diagnosticExitCode))
         {
-            Shutdown();
+            Shutdown(diagnosticExitCode);
             return;
         }
 
+        CheckNativeOcrReadiness();
+#endif
         base.OnStartup(e);
     }
 
-    private static bool TryRunNativeOcrDiagnostic(IReadOnlyList<string> args)
+#if MDIFY_WINDOWS_LITE
+    private static bool TryRunNativeOcrDiagnostic(
+        IReadOnlyList<string> args,
+        out int exitCode)
     {
+        exitCode = 0;
         if (args.Count != 2 || !string.Equals(args[0], "--diagnose-native-ocr", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
+        AttachDiagnosticConsole();
+        var identity = "unknown";
+        var readyState = "unavailable";
+        var recognition = "failure";
+        var errorType = "none";
         try
         {
-            var result = new WindowsNativeOcrService()
+            identity = PackageIdentityProbe.Probe().State.ToString().ToLowerInvariant();
+            readyState = WindowsNativeOcrService.GetReadyState().ToString();
+            _ = new WindowsNativeOcrService()
                 .RecognizeAsync(args[1], CancellationToken.None)
                 .GetAwaiter()
                 .GetResult();
-            var preview = result.Markdown.Length > 800 ? $"{result.Markdown[..800]}..." : result.Markdown;
-            MessageBox.Show(
-                $"Average confidence: {result.AverageConfidence:0.000}\n\n{preview}",
-                "MDify Native OCR Diagnostic",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            recognition = "success";
         }
         catch (Exception error)
         {
-            MessageBox.Show(
-                error.Message,
-                "MDify Native OCR Diagnostic",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            errorType = error.GetType().Name;
+            exitCode = 1;
         }
 
+        Console.WriteLine($"package_identity={identity}");
+        Console.WriteLine($"ready_state={readyState}");
+        Console.WriteLine($"recognition={recognition}");
+        Console.WriteLine($"error_type={errorType}");
         return true;
     }
+
+    private static void CheckNativeOcrReadiness()
+    {
+        Microsoft.Windows.AI.AIFeatureReadyState readyState;
+        try
+        {
+            readyState = WindowsNativeOcrService.GetReadyState();
+        }
+        catch (Exception error)
+        {
+            ShowNativeOcrUnavailable($"Windows could not inspect the built-in OCR model: {error.Message}");
+            return;
+        }
+
+        switch (readyState)
+        {
+            case Microsoft.Windows.AI.AIFeatureReadyState.Ready:
+                return;
+            case Microsoft.Windows.AI.AIFeatureReadyState.NotReady:
+                PrepareNativeOcrWithConsent();
+                return;
+            case Microsoft.Windows.AI.AIFeatureReadyState.CapabilityMissing:
+                ShowNativeOcrUnavailable(
+                    "Windows AI denied access to the built-in OCR model. Run the native OCR diagnostic to check package identity and capability access.");
+                return;
+            case Microsoft.Windows.AI.AIFeatureReadyState.NotSupportedOnCurrentSystem:
+                ShowNativeOcrUnavailable(
+                    "The built-in OCR model is not supported by this Windows version or hardware. Use MDify OCR on this computer.");
+                return;
+            case Microsoft.Windows.AI.AIFeatureReadyState.DisabledByUser:
+                ShowNativeOcrUnavailable(
+                    "The built-in OCR model is disabled in Windows settings.");
+                return;
+            case Microsoft.Windows.AI.AIFeatureReadyState.NotCompatibleWithSystemHardware:
+                ShowNativeOcrUnavailable(
+                    "MDify Lite requires a compatible Copilot+ PC with an NPU. Use MDify OCR on this computer.");
+                return;
+            case Microsoft.Windows.AI.AIFeatureReadyState.OSUpdateNeeded:
+                ShowNativeOcrUnavailable(
+                    "MDify Lite requires a supported Windows 11 25H2 build or newer. Update Windows or use MDify OCR.");
+                return;
+            default:
+                ShowNativeOcrUnavailable($"Windows Text Recognizer is not ready: {readyState}.");
+                return;
+        }
+    }
+
+    private static void PrepareNativeOcrWithConsent()
+    {
+        var consent = MessageBox.Show(
+            "Windows needs to prepare the built-in text recognition model. Continue?",
+            "Prepare Windows OCR",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (consent == MessageBoxResult.Yes)
+        {
+            try
+            {
+                WindowsNativeOcrService.PrepareModelAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception error)
+            {
+                ShowNativeOcrUnavailable($"Windows could not prepare the built-in OCR model: {error.Message}");
+            }
+        }
+    }
+
+    private static void ShowNativeOcrUnavailable(string message)
+    {
+        MessageBox.Show(
+            message,
+            "MDify Lite OCR unavailable",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+    }
+
+    private static void AttachDiagnosticConsole()
+    {
+        if (!AttachConsole(AttachParentProcess))
+        {
+            return;
+        }
+
+        var output = new StreamWriter(Console.OpenStandardOutput())
+        {
+            AutoFlush = true
+        };
+        Console.SetOut(output);
+    }
+
+    private const uint AttachParentProcess = 0xFFFFFFFF;
+
+    [DllImport("kernel32.dll")]
+    private static extern bool AttachConsole(uint processId);
+#endif
 }

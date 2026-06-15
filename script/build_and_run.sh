@@ -5,7 +5,7 @@ MODE="run"
 VARIANT="lite"
 APP_PRODUCT="MDify"
 MIN_SYSTEM_VERSION="14.0"
-APP_VERSION="${APP_VERSION:-0.2.0}"
+APP_VERSION="${APP_VERSION:-0.4.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-2}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -126,6 +126,10 @@ cat >"$INFO_PLIST" <<PLIST
 </dict>
 </plist>
 PLIST
+
+"${PYTHON_BIN:-python3}" "$ROOT_DIR/script/verify_macos_release.py" \
+  --app "$APP_BUNDLE" \
+  --variant "$VARIANT"
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"

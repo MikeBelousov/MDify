@@ -23,7 +23,7 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
         var native = new StubNativeOcr(new NativeOcrResult("Native recognized text", 0.9));
         var client = new NativeOcrRoutingClient(WorkerKind.Lite, worker, nativeOcr: native);
 
-        var response = await client.ConvertAsync(input, output, CancellationToken.None);
+        var response = await client.ConvertAsync(input, output, new ConversionOptions(), CancellationToken.None);
 
         Assert.Equal("native", response.Worker);
         Assert.Equal("windows-text-recognizer", response.Engine);
@@ -42,12 +42,15 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
         var native = new StubNativeOcr(new NativeOcrResult("Native should not run", 0.9));
         var client = new NativeOcrRoutingClient(WorkerKind.Ocr, worker, nativeOcr: native);
 
-        var response = await client.ConvertAsync(input, output, CancellationToken.None);
+        var options = new ConversionOptions(OcrLanguageMode.Cyrillic);
+
+        var response = await client.ConvertAsync(input, output, options, CancellationToken.None);
 
         Assert.Equal("ocr", response.Worker);
         Assert.Equal("markitdown", response.Engine);
         Assert.False(response.OcrUsed);
         Assert.Equal(1, worker.InvocationCount);
+        Assert.Equal(new[] { options }, worker.ReceivedOptions);
         Assert.Equal(0, native.InvocationCount);
     }
 
@@ -60,7 +63,7 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
         var native = new StubNativeOcr(new NativeOcrResult("Native PDF text", 0.9));
         var client = new NativeOcrRoutingClient(WorkerKind.Ocr, worker, nativeOcr: native);
 
-        var response = await client.ConvertAsync(input, output, CancellationToken.None);
+        var response = await client.ConvertAsync(input, output, new ConversionOptions(), CancellationToken.None);
 
         Assert.Equal("native", response.Worker);
         Assert.Equal("Native PDF text", File.ReadAllText(output));
@@ -78,13 +81,16 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
         var native = new StubNativeOcr(new NativeOcrResult("bad", 0.2));
         var client = new NativeOcrRoutingClient(WorkerKind.Ocr, preflight, fallback, native);
 
-        var response = await client.ConvertAsync(input, output, CancellationToken.None);
+        var options = new ConversionOptions(OcrLanguageMode.Latin);
+
+        var response = await client.ConvertAsync(input, output, options, CancellationToken.None);
 
         Assert.Equal("rapidocr", response.Engine);
         Assert.Contains(response.Warnings, warning => warning.Contains("weak", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("# RapidOCR", File.ReadAllText(output));
         Assert.Equal(0, preflight.InvocationCount);
         Assert.Equal(1, fallback.InvocationCount);
+        Assert.Equal(new[] { options }, fallback.ReceivedOptions);
     }
 
     [Fact]
@@ -97,7 +103,7 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
         var client = new NativeOcrRoutingClient(WorkerKind.Ocr, preflight, nativeOcr: native);
 
         var error = await Assert.ThrowsAsync<NativeOcrRoutingException>(() =>
-            client.ConvertAsync(input, output, CancellationToken.None));
+            client.ConvertAsync(input, output, new ConversionOptions(), CancellationToken.None));
 
         Assert.Contains("RapidOCR fallback", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, preflight.InvocationCount);
@@ -112,10 +118,13 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
         var native = new ThrowingNativeOcr();
         var client = new NativeOcrRoutingClient(WorkerKind.Ocr, new SpyWorker(""), fallback, native);
 
-        var response = await client.ConvertAsync(input, output, CancellationToken.None);
+        var options = new ConversionOptions(OcrLanguageMode.Cyrillic);
+
+        var response = await client.ConvertAsync(input, output, options, CancellationToken.None);
 
         Assert.Equal("rapidocr", response.Engine);
         Assert.Contains(response.Warnings, warning => warning.Contains("failed", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(new[] { options }, fallback.ReceivedOptions);
     }
 
     [Fact]
@@ -129,9 +138,23 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
             nativeOcr: new ThrowingNativeOcr());
 
         var error = await Assert.ThrowsAsync<NativeOcrRoutingException>(() =>
-            client.ConvertAsync(input, output, CancellationToken.None));
+            client.ConvertAsync(input, output, new ConversionOptions(), CancellationToken.None));
 
         Assert.Contains("Windows Text Recognizer", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task OtherFile_PassesOptionsToWorker()
+    {
+        var input = Touch("notes.txt");
+        var output = Path.Combine(_root, "notes.md");
+        var worker = new SpyWorker("worker text");
+        var options = new ConversionOptions(OcrLanguageMode.Latin);
+        var client = new NativeOcrRoutingClient(WorkerKind.Lite, worker);
+
+        await client.ConvertAsync(input, output, options, CancellationToken.None);
+
+        Assert.Equal(new[] { options }, worker.ReceivedOptions);
     }
 
     public void Dispose()
@@ -192,12 +215,16 @@ public sealed class NativeOcrRoutingClientTests : IDisposable
 
         public int InvocationCount { get; private set; }
 
+        public List<ConversionOptions> ReceivedOptions { get; } = new();
+
         public Task<WorkerResponse> ConvertAsync(
             string inputPath,
             string outputPath,
+            ConversionOptions options,
             CancellationToken cancellationToken)
         {
             InvocationCount++;
+            ReceivedOptions.Add(options);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
             File.WriteAllText(outputPath, _markdown);
             return Task.FromResult(new WorkerResponse(

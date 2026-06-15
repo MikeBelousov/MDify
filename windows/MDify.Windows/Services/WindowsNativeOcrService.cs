@@ -47,22 +47,34 @@ public sealed class WindowsNativeOcrService : INativeOcrService
         throw new NotSupportedException($"Windows Text Recognizer does not support {extension} input.");
     }
 
+    public static AIFeatureReadyState GetReadyState() => TextRecognizer.GetReadyState();
+
+    public static async Task PrepareModelAsync()
+    {
+        if (GetReadyState() != AIFeatureReadyState.NotReady)
+        {
+            return;
+        }
+
+        var loadResult = await TextRecognizer.EnsureReadyAsync();
+        if (loadResult.Status != AIFeatureReadyResultState.Success)
+        {
+            throw new InvalidOperationException("Windows Text Recognizer model preparation failed.");
+        }
+    }
+
     private static async Task<TextRecognizer> EnsureRecognizerReadyAsync()
     {
-        var readyState = TextRecognizer.GetReadyState();
+        var readyState = GetReadyState();
         if (readyState == AIFeatureReadyState.CapabilityMissing)
         {
             throw new InvalidOperationException(
-                "Windows Text Recognizer requires the systemAIModels capability in the app package manifest.");
+                "Windows Text Recognizer is unavailable because systemAIModels capability access is missing.");
         }
 
         if (readyState == AIFeatureReadyState.NotReady)
         {
-            var loadResult = await TextRecognizer.EnsureReadyAsync();
-            if (loadResult.Status != AIFeatureReadyResultState.Success)
-            {
-                throw new InvalidOperationException("Windows Text Recognizer model preparation failed.");
-            }
+            await PrepareModelAsync();
         }
         else if (readyState != AIFeatureReadyState.Ready)
         {

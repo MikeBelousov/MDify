@@ -17,6 +17,7 @@ public interface IWorkerConverting
     Task<WorkerResponse> ConvertAsync(
         string inputPath,
         string outputPath,
+        ConversionOptions options,
         CancellationToken cancellationToken);
 }
 
@@ -56,6 +57,7 @@ public sealed class WorkerClient : IWorkerConverting
     public async Task<WorkerResponse> ConvertAsync(
         string inputPath,
         string outputPath,
+        ConversionOptions options,
         CancellationToken cancellationToken)
     {
         var arguments = new List<string>
@@ -70,7 +72,7 @@ public sealed class WorkerClient : IWorkerConverting
             arguments.AddRange(new[]
             {
                 "--ocr", SerializeOcrMode(_ocrMode),
-                "--ocr-lang", "cyrillic",
+                "--ocr-lang", SerializeOcrLanguage(options.OcrLanguage),
                 "--dpi", "300"
             });
         }
@@ -103,6 +105,17 @@ public sealed class WorkerClient : IWorkerConverting
             WorkerOcrMode.Always => "always",
             WorkerOcrMode.Off => "off",
             _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+        };
+    }
+
+    private static string SerializeOcrLanguage(OcrLanguageMode language)
+    {
+        return language switch
+        {
+            OcrLanguageMode.Auto => "auto",
+            OcrLanguageMode.Cyrillic => "cyrillic",
+            OcrLanguageMode.Latin => "latin",
+            _ => throw new ArgumentOutOfRangeException(nameof(language), language, null)
         };
     }
 }

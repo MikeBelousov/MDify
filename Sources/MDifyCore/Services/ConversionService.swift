@@ -6,17 +6,20 @@ public final class ConversionService: ObservableObject {
     @Published public private(set) var items: [ConversionItem] = []
     @Published public var selectedID: UUID?
     @Published public private(set) var isConverting = false
+    @Published public var options: ConversionOptions
 
     private let workerClient: any WorkerConverting
     private let namer: OutputFileNamer
     private var shouldCancel = false
 
     public init(
-        workerClient: any WorkerConverting = WorkerBundleResolver().makeNativeRoutingClient(),
-        namer: OutputFileNamer = OutputFileNamer()
+        workerClient: any WorkerConverting = WorkerBundleResolver().makeConversionRoute().client,
+        namer: OutputFileNamer = OutputFileNamer(),
+        options: ConversionOptions = .default
     ) {
         self.workerClient = workerClient
         self.namer = namer
+        self.options = options
     }
 
     public var selectedItem: ConversionItem? {
@@ -81,6 +84,7 @@ public final class ConversionService: ObservableObject {
         isConverting = true
         shouldCancel = false
         defer { isConverting = false }
+        let batchOptions = options
 
         var reservedNames = Set<String>()
         var reservedRoots: [String: URL] = [:]
@@ -97,11 +101,15 @@ public final class ConversionService: ObservableObject {
             } else {
                 outputURL = namer.markdownURL(for: item, in: outputDirectory, reservedRoots: &reservedRoots)
             }
-            await convert(itemID: item.id, outputURL: outputURL)
+            await convert(itemID: item.id, outputURL: outputURL, options: batchOptions)
         }
     }
 
-    private func convert(itemID: UUID, outputURL: URL) async {
+    private func convert(
+        itemID: UUID,
+        outputURL: URL,
+        options: ConversionOptions
+    ) async {
         guard let item = items.first(where: { $0.id == itemID }) else { return }
         update(itemID) {
             $0.status = .converting
@@ -111,7 +119,11 @@ public final class ConversionService: ObservableObject {
         }
 
         do {
-            let response = try await workerClient.convert(inputURL: item.inputURL, outputURL: outputURL)
+            let response = try await workerClient.convert(
+                inputURL: item.inputURL,
+                outputURL: outputURL,
+                options: options
+            )
             guard response.ok else {
                 update(itemID) {
                     $0.status = .failed
