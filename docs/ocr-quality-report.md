@@ -33,12 +33,12 @@ recognition improved from 0.0 to 1.0 exact-line accuracy and from 0.727273 to
 
 | Artifact | Measured size |
 | --- | ---: |
-| `MDify-Lite-AppleSilicon.zip` | 72,568,197 bytes |
-| `MDify-OCR-AppleSilicon.zip` | 305,959,737 bytes |
-| `MDify-Lite-Intel.zip` | Pending Intel CI |
-| `MDify-OCR-Intel.zip` | Pending Intel CI |
-| `MDify-Windows-Lite-Setup.exe` | Pending Windows CI |
-| `MDify-Windows-OCR-Setup.exe` | Pending Windows CI |
+| `MDify-Lite-AppleSilicon.zip` | 72,469,349 bytes |
+| `MDify-OCR-AppleSilicon.zip` | 305,340,107 bytes |
+| `MDify-Lite-Intel.zip` | 75,896,108 bytes |
+| `MDify-OCR-Intel.zip` | 298,120,344 bytes |
+| `MDify-Windows-Lite-Setup.exe` | 136,713,318 bytes |
+| `MDify-Windows-OCR-Setup.exe` | 319,454,444 bytes |
 
 ## Verification Status
 
@@ -48,8 +48,10 @@ Automated locally:
 - Smart OCR quality is gated against a frozen pre-smart baseline.
 - macOS Lite contains only the Lite worker and no PaddleOCR models.
 - macOS OCR contains only the OCR worker, its manifest, and every manifest model.
-- Windows CI is configured to build, test, publish, inspect, and package Lite
-  and OCR separately; a successful Windows runner is still required before release.
+- GitHub Actions passed on June 15, 2026 for macOS Apple Silicon, macOS Intel,
+  Windows Lite, and Windows OCR.
+- Windows CI built, tested, published, inspected, and packaged Lite and OCR
+  separately into two Inno Setup installers.
 
 The following hardware acceptance checks are intentionally deferred from the
 v0.4.0 automated release gate:
