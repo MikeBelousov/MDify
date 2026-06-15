@@ -77,13 +77,6 @@ Supported formats include `pdf`, `docx`, `pptx`, `xlsx`, `xls`, `html`, `csv`,
 `json`, `xml`, `txt`, `md`, `epub`, `zip`, `jpg`, `png`, `tiff`, `webp`, and
 `bmp`.
 
-## Homebrew
-
-```bash
-brew install --cask mikebelousov/tap/mdify
-brew install --cask mikebelousov/tap/mdify-ocr
-```
-
 ## Requirements
 
 - macOS 14 or newer
