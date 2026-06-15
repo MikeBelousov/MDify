@@ -3,6 +3,7 @@ from __future__ import annotations
 from itertools import zip_longest
 import json
 from pathlib import Path
+from time import perf_counter
 
 import pytest
 
@@ -105,11 +106,13 @@ def test_smart_ocr_meets_quality_gate() -> None:
     smart_results = []
     for fixture in fixtures:
         expected_lines = fixture["expected_lines"]
+        started_at = perf_counter()
         smart = ocr_image_to_markdown(
             FIXTURES_DIR / fixture["path"],
             models_dir,
             OCRLanguageMode.AUTO,
         )
+        elapsed_seconds = perf_counter() - started_at
         smart_lines = [line for line in smart.markdown.splitlines() if line]
         smart_results.append(
             {
@@ -122,6 +125,10 @@ def test_smart_ocr_meets_quality_gate() -> None:
                     expected_lines,
                     smart_lines,
                 ),
+                "line_count": smart.line_count,
+                "latin_retry_count": smart.latin_retry_count,
+                "ppocrv6_retry_count": smart.ppocrv6_retry_count,
+                "elapsed_seconds": elapsed_seconds,
             }
         )
 
@@ -137,6 +144,9 @@ def test_smart_ocr_meets_quality_gate() -> None:
 
     assert smart["exact_line_accuracy"] >= baseline["exact_line_accuracy"]
     assert smart["character_error_rate"] <= baseline["character_error_rate"]
+    assert 0.0 <= smart["latin_retry_ratio"] <= 1.0
+    assert 0.0 <= smart["ppocrv6_retry_ratio"] <= 1.0
+    assert smart["average_seconds_per_fixture"] > 0
     baseline_mixed = next(
         result
         for result in baseline["fixtures"]
@@ -153,10 +163,28 @@ def test_smart_ocr_meets_quality_gate() -> None:
 
 
 def summarize_results(results: list[dict]) -> dict:
+    total_lines = sum(item.get("line_count", 0) for item in results)
     return {
         "exact_line_accuracy": sum(item["exact_line_accuracy"] for item in results)
         / len(results),
         "character_error_rate": sum(item["character_error_rate"] for item in results)
+        / len(results),
+        "total_lines": total_lines,
+        "latin_retry_count": sum(item.get("latin_retry_count", 0) for item in results),
+        "ppocrv6_retry_count": sum(
+            item.get("ppocrv6_retry_count", 0) for item in results
+        ),
+        "latin_retry_ratio": sum(
+            item.get("latin_retry_count", 0) for item in results
+        )
+        / max(1, total_lines),
+        "ppocrv6_retry_ratio": sum(
+            item.get("ppocrv6_retry_count", 0) for item in results
+        )
+        / max(1, total_lines),
+        "average_seconds_per_fixture": sum(
+            item.get("elapsed_seconds", 0.0) for item in results
+        )
         / len(results),
         "fixtures": results,
     }
