@@ -1,26 +1,26 @@
 # Changelog
 
+## v0.4.0 - 2026-06-14
+
+- MDify now comes in separate Lite and OCR versions for both macOS and Windows.
+- OCR versions recognize mixed Cyrillic and Latin text more accurately and let you choose the language manually.
+- Windows OCR now works on Windows 10 version 1809 and newer.
+- Windows Lite and Windows OCR have separate installers and can be installed side by side.
+
 ## v0.3.0 - 2026-06-05
 
-- Added Windows 11 x64 preview app scaffold using C# WPF.
-- Added Windows worker execution, native Windows AI OCR routing, and RapidOCR fallback.
-- Added Windows PyInstaller worker packaging script.
-- Added Inno Setup installer and GitHub Actions Windows artifact workflow.
-- Added Windows preview documentation and dependency notices.
+- Added the first Windows version of MDify.
+- Added Windows AI OCR for images and scanned PDFs.
+- Added a simple Windows installer.
 
 ## v0.2.0 - 2026-06-02
 
-- Replaced user-machine Python setup with embedded PyInstaller workers.
-- Added separate `MDify Lite.app` and `MDify OCR.app` release variants.
-- Added local OCR for image files and scanned PDFs with bundled RapidOCR models.
-- Updated folder import support so Lite and OCR variants expose different supported extensions.
-- Added worker JSON protocol, Swift worker client, and release packaging for separate zip assets.
+- Added separate Lite and OCR versions for macOS.
+- Added local OCR for images and scanned PDFs.
+- MDify no longer needs Python to be installed separately.
 
 ## v0.1.0 - 2026-06-02
 
-- Initial public release of MDify.
-- Native macOS SwiftUI app for converting local documents to Markdown.
-- Automatic MarkItDown setup inside an app-owned Python virtual environment.
-- File and folder import with unsupported-file filtering.
-- Mirrored output folders for folder imports.
-- Markdown preview, raw output, copy, and Finder reveal actions.
+- First public release for macOS.
+- Convert individual files or whole folders to Markdown.
+- Preview, copy, and reveal converted files in Finder.

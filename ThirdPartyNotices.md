@@ -24,19 +24,22 @@ The OCR worker includes all Lite worker dependencies plus:
 - PaddleOCR PP-OCRv6 medium recognition model, exported to ONNX: Apache-2.0.
 
 OCR model files are listed in `workers/ocr/model_manifest.json` with source URLs,
-sha256 hashes, and license notes. The OCR release embeds those files in
-`MDify OCR.app`; runtime never downloads them.
+sha256 hashes, and license notes. The macOS OCR app and Windows OCR installer
+embed those files; runtime never downloads them.
 
 Before publishing binary releases, regenerate a complete dependency notice from
 the locked worker environments.
 
-## Windows Preview App
+## Windows Apps
 
 - .NET runtime and WPF components bundled in the self-contained Windows publish:
   MIT.
-- Microsoft Windows App SDK and Windows AI API projections: MIT.
+- Microsoft Windows App SDK and Windows AI API projections, included only in
+  Windows Lite: MIT.
 - Inno Setup installer tooling: Inno Setup license.
 
-The Windows installer embeds the same Lite and OCR Python worker dependencies
-listed above under `Workers/`. The Windows AI Text Recognizer model is provided
-by Windows when available; MDify does not redistribute that model.
+The Windows Lite installer contains only the Lite worker. The Windows OCR
+installer contains only the OCR worker and bundled PaddleOCR models; it does not
+include Windows App SDK or Windows AI dependencies. The Windows AI Text
+Recognizer model used by Windows Lite is provided by Windows; MDify does not
+redistribute that model.
