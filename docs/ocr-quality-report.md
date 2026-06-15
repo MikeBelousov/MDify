@@ -51,7 +51,8 @@ Automated locally:
 - Windows CI is configured to build, test, publish, inspect, and package Lite
   and OCR separately; a successful Windows runner is still required before release.
 
-External release gates still require suitable hardware:
+The following hardware acceptance checks are intentionally deferred from the
+v0.4.0 automated release gate:
 
 - run Windows OCR on a clean Windows 10 version 1809 or newer x64 VM;
 - install Windows Lite on a clean supported Copilot+ PC;

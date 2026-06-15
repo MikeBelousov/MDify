@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PRODUCT="MDify"
 MIN_SYSTEM_VERSION="14.0"
-APP_VERSION="${APP_VERSION:-0.2.0}"
+APP_VERSION="${APP_VERSION:-0.4.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-2}"
 DIST_DIR="$ROOT_DIR/dist"
 

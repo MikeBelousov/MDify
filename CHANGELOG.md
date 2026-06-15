@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.4.0 - 2026-06-14
+## v0.4.0 - 2026-06-15
 
 - MDify now comes in separate Lite and OCR versions for both macOS and Windows.
 - OCR versions recognize mixed Cyrillic and Latin text more accurately and let you choose the language manually.

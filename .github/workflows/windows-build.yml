@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
 
@@ -36,12 +36,12 @@ jobs:
           }
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.x"
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: "pip"
@@ -50,7 +50,7 @@ jobs:
             workers/ocr/requirements-ocr.txt
 
       - name: Cache NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('windows/**/*.csproj') }}
@@ -58,7 +58,7 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Cache OCR models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: workers/ocr/models
           key: ocr-models-${{ hashFiles('workers/ocr/model_manifest.json') }}
@@ -176,14 +176,29 @@ jobs:
             throw "OCR Inno Setup build failed with exit code $LASTEXITCODE"
           }
 
+      - name: Report release asset sizes
+        shell: pwsh
+        run: |
+          "### Windows release sizes" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Asset | Bytes |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| --- | ---: |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-Item `
+            dist/windows/installer/MDify-Windows-Lite-Setup.exe, `
+            dist/windows/installer/MDify-Windows-OCR-Setup.exe |
+            ForEach-Object {
+              "$($_.Name)=$($_.Length)"
+              "| ``$($_.Name)`` | $($_.Length) |" |
+                Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
+
       - name: Upload Lite installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MDify-Windows-Lite-Setup
           path: dist/windows/installer/MDify-Windows-Lite-Setup.exe
 
       - name: Upload OCR installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MDify-Windows-OCR-Setup
           path: dist/windows/installer/MDify-Windows-OCR-Setup.exe
