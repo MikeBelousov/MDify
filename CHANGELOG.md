@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.1 - 2026-06-20
 
 - Windows OCR no longer crashes when opening the Log tab.
 - Windows Lite now installs on Windows 11 and reports Windows AI OCR availability inside the app.
