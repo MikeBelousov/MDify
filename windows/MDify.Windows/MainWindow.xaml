@@ -88,7 +88,7 @@
               CornerRadius="6">
         <TabControl BorderThickness="0">
           <TabItem Header="Markdown">
-            <TextBox Text="{Binding PreviewText}"
+            <TextBox Text="{Binding PreviewText, Mode=OneWay}"
                      AcceptsReturn="True"
                      AcceptsTab="True"
                      IsReadOnly="True"
@@ -101,7 +101,7 @@
                      HorizontalScrollBarVisibility="Auto" />
           </TabItem>
           <TabItem Header="Log">
-            <TextBox Text="{Binding LogText}"
+            <TextBox Text="{Binding LogText, Mode=OneWay}"
                      AcceptsReturn="True"
                      IsReadOnly="True"
                      TextWrapping="Wrap"

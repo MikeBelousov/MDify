@@ -44,14 +44,15 @@ open -a "MDify OCR"
 ### Windows
 
 - `MDify-Windows-OCR-Setup.exe`: recommended for most Windows 10 and 11 PCs.
-- `MDify-Windows-Lite-Setup.exe`: for supported Windows 11 Copilot+ PCs.
+- `MDify-Windows-Lite-Setup.exe`: for Windows 11 PCs that may support Windows AI OCR.
 
 Both are regular `.exe` installers and can be installed side by side. Windows
 SmartScreen may show a warning because the installers are not signed yet.
 
-Windows Lite requires a Copilot+ PC with a compatible NPU and a supported
-Windows 11 25H2 build. It will not work on every Windows 11 computer. Windows
-OCR works on Windows 10 version 1809 and newer.
+Windows Lite installs on Windows 11, but its built-in OCR only works on a
+supported Copilot+ PC with a compatible NPU and a supported Windows 11 25H2
+build. If Windows AI OCR is not available, the app will tell you to use Windows
+OCR instead. Windows OCR works on Windows 10 version 1809 and newer.
 
 To check whether Windows AI OCR is available:
 
@@ -81,7 +82,7 @@ Supported formats include `pdf`, `docx`, `pptx`, `xlsx`, `xls`, `html`, `csv`,
 
 - macOS 14 or newer
 - Windows OCR: Windows 10 version 1809 or newer, x64
-- Windows Lite: supported Windows 11 Copilot+ PC with a compatible NPU
+- Windows Lite: Windows 11 for installation; supported Copilot+ PC with a compatible NPU for OCR
 
 For OCR quality measurements and release verification details, see
 [`docs/ocr-quality-report.md`](docs/ocr-quality-report.md).

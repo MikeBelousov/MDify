@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Windows OCR no longer crashes when opening the Log tab.
+- Windows Lite now installs on Windows 11 and reports Windows AI OCR availability inside the app.
+
 ## v0.4.0 - 2026-06-15
 
 - MDify now comes in separate Lite and OCR versions for both macOS and Windows.

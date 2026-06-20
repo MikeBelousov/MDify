@@ -38,7 +38,7 @@ def test_installers_define_distinct_variant_contracts() -> None:
     assert _setup_value(ocr, "AppName") == "MDify OCR"
     assert _setup_value(lite, "DefaultDirName") == r"{localappdata}\Programs\MDify Lite"
     assert _setup_value(ocr, "DefaultDirName") == r"{localappdata}\Programs\MDify OCR"
-    assert _setup_value(lite, "MinVersion") == "10.0.26200"
+    assert _setup_value(lite, "MinVersion") == "10.0.22000"
     assert _setup_value(ocr, "MinVersion") == "10.0.17763"
     assert _setup_value(lite, "OutputBaseFilename") == "MDify-Windows-Lite-Setup"
     assert _setup_value(ocr, "OutputBaseFilename") == "MDify-Windows-OCR-Setup"
