@@ -52,10 +52,8 @@ struct ContentView: View {
                     .accessibilityValue(appState.ocrLanguageMode.displayName)
                 }
 
-                Button {
+                ConvertButton {
                     Task { await appState.convertAll() }
-                } label: {
-                    Label("Convert All", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .disabled(conversionService.items.isEmpty || conversionService.isConverting)
 

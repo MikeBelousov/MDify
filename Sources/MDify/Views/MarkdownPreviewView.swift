@@ -12,6 +12,7 @@ struct MarkdownPreviewView: View {
 
     let item: ConversionItem
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var conversionService: ConversionService
     @State private var mode: Mode = .preview
 
     var body: some View {
@@ -72,11 +73,19 @@ struct MarkdownPreviewView: View {
     private var content: some View {
         switch mode {
         case .preview:
-            ScrollView {
-                Text(renderedMarkdown)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .padding(24)
+            switch item.status {
+            case .pending where item.markdownText.isEmpty:
+                PendingConversionView {
+                    Task { await appState.convertAll() }
+                }
+                .disabled(conversionService.items.isEmpty || conversionService.isConverting)
+            default:
+                ScrollView {
+                    Text(renderedMarkdown)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding(24)
+                }
             }
         case .raw:
             TextEditor(text: .constant(item.markdownText))
@@ -101,5 +110,28 @@ struct MarkdownPreviewView: View {
             return "\(error)\n\n\(item.log)"
         }
         return item.log.isEmpty ? "No log output." : item.log
+    }
+}
+
+private struct PendingConversionView: View {
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "number")
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text("No Markdown yet")
+                .font(.title3)
+                .fontWeight(.semibold)
+
+            ConvertButton {
+                action()
+            }
+            .controlSize(.large)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
     }
 }

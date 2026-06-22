@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.2 - 2026-06-22
+
+- Made the macOS conversion action clearer with a prominent dark Convert button.
+- Added a Convert call-to-action to the pending Markdown preview state.
+
 ## v0.4.1 - 2026-06-20
 
 - Windows OCR no longer crashes when opening the Log tab.
