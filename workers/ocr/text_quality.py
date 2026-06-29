@@ -8,12 +8,18 @@ import unicodedata
 AUTO_CONFIDENCE_THRESHOLD = 0.75
 MIN_ACCEPTABLE_QUALITY = 0.70
 CANDIDATE_TIE_MARGIN = 0.03
+LATIN_TRIGGER_CONFIDENCE = 0.50
+LATIN_ACCEPT_CONFIDENCE = 0.90
+EMPTY_ESLAV_ACCEPT_CONFIDENCE = 0.85
+LATIN_MIN_QUALITY_GAIN = 0.20
+LATIN_MIN_SIMILARITY = 0.70
+LATIN_MIN_SOURCE_LENGTH = 5
 
 _TOKEN_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
 _REPEATED_LETTER_PATTERN = re.compile(r"([^\W\d_])\1{3,}", re.IGNORECASE)
 _LATIN_CONFUSABLES = frozenset("AaBCcEeHhIiJjKkMmNnOoPpQqSsTtXxYy")
 _CYRILLIC_CONFUSABLES = frozenset("АаВССсЕеННнІіЈјКкМмОоРрЅѕТтХхУу")
-_SUPPORTED_MODELS = frozenset({"eslav", "cyrillic", "latin", "ppocrv6"})
+_SUPPORTED_MODELS = frozenset({"eslav", "cyrillic", "latin"})
 
 
 @dataclass(frozen=True)

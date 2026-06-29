@@ -73,6 +73,24 @@ class PPOCRV6Recognizer:
         return [self._decode(sequence) for sequence in probabilities]
 
     @staticmethod
+    def _as_bgr_image(image: Image.Image | np.ndarray) -> Image.Image:
+        """Return channel values in BGR order.
+
+        PIL inputs follow PIL's RGB contract. NumPy inputs follow RapidOCR's
+        BGR crop contract.
+        """
+        if isinstance(image, Image.Image):
+            rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+            return Image.fromarray(np.ascontiguousarray(rgb[:, :, ::-1]))
+
+        bgr = np.asarray(image)
+        if bgr.ndim != 3 or bgr.shape[2] != 3:
+            raise ValueError(
+                f"expected a BGR image with shape HxWx3, got {bgr.shape}"
+            )
+        return Image.fromarray(np.ascontiguousarray(bgr))
+
+    @staticmethod
     def _prepare_batch(
         images: Sequence[Image.Image | np.ndarray],
         input_shape: Sequence[Any],
@@ -91,12 +109,12 @@ class PPOCRV6Recognizer:
         converted: list[Image.Image] = []
         resized_widths: list[int] = []
         for image in images:
-            pil_image = (
-                image if isinstance(image, Image.Image) else Image.fromarray(image)
+            bgr_image = PPOCRV6Recognizer._as_bgr_image(image)
+            width = max(
+                1,
+                round(bgr_image.width * height / max(1, bgr_image.height)),
             )
-            rgb_image = pil_image.convert("RGB")
-            width = max(1, round(rgb_image.width * height / max(1, rgb_image.height)))
-            converted.append(rgb_image)
+            converted.append(bgr_image)
             width_limit = fixed_width or PPOCRV6Recognizer.MAX_DYNAMIC_WIDTH
             resized_widths.append(min(width, width_limit))
 
@@ -105,7 +123,7 @@ class PPOCRV6Recognizer:
         for index, (image, width) in enumerate(zip(converted, resized_widths, strict=True)):
             resized = image.resize((width, height), Image.Resampling.BILINEAR)
             array = np.asarray(resized, dtype=np.float32) / 127.5 - 1.0
-            batch[index, :, :, :width] = array[:, :, ::-1].transpose(2, 0, 1)
+            batch[index, :, :, :width] = array.transpose(2, 0, 1)
         return batch
 
     @staticmethod

@@ -54,6 +54,17 @@ def verify_bundle(app: Path, variant: str) -> None:
     missing = [path for path in model_paths if not (models_dir / path).is_file()]
     if missing:
         raise ValueError(f"OCR bundle is missing model files: {', '.join(missing)}")
+    expected = set(model_paths)
+    actual = {
+        path.relative_to(models_dir).as_posix()
+        for path in models_dir.rglob("*")
+        if path.is_file()
+    }
+    extra = sorted(actual - expected)
+    if extra:
+        raise ValueError(
+            f"OCR bundle contains unlisted model files: {', '.join(extra)}"
+        )
 
 
 def main() -> int:

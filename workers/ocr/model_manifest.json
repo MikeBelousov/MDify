@@ -1,5 +1,5 @@
 {
-  "version": "rapidocr-3.8.0-ppocrv5-models+ppocrv6-medium-rec",
+  "version": "rapidocr-3.8.0-ppocrv5-conservative-latin",
   "files": [
     {
       "path": "det/ch_PP-OCRv5_det_server.onnx",
@@ -24,20 +24,6 @@
       "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/rec/latin_PP-OCRv5_rec_mobile.onnx",
       "sha256": "b20bd37c168a570f583afbc8cd7925603890efbcdc000a59e22c269d160b5f5a",
       "license": "RapidOCR model license"
-    },
-    {
-      "path": "rec/PP-OCRv6_medium_rec.onnx",
-      "distribution": "git-lfs",
-      "source_url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv6_medium_rec_infer.tar",
-      "sha256": "656f8af8f433f91c8441115fdf32a704ea49b243170ac76dafb6af9d4d5173f5",
-      "license": "Apache-2.0"
-    },
-    {
-      "path": "dict/PP-OCRv6_medium_rec.txt",
-      "distribution": "git-lfs",
-      "source_url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv6_medium_rec_infer.tar",
-      "sha256": "d051391881962ec266c4b4ee7b6a493fa2aeabaa2cd9ee369148cf3f6980af99",
-      "license": "Apache-2.0"
     },
     {
       "path": "fonts/cyrillic.ttf",

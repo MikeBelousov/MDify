@@ -101,6 +101,33 @@ jobs:
         shell: pwsh
         run: ./workers/build/build_worker_windows.ps1 -Variant ocr -Python python
 
+      - name: Verify OCR worker model contract
+        shell: pwsh
+        run: |
+          $worker = ".build/workers/win-x64/mdify-worker-ocr"
+          $bundledManifest = @(Get-ChildItem $worker -Recurse -File -Filter "model_manifest.json")
+          if ($bundledManifest.Count -ne 1) {
+            throw "Expected exactly one OCR model manifest in Windows worker"
+          }
+
+          $manifest = Get-Content workers/ocr/model_manifest.json -Raw | ConvertFrom-Json
+          $manifestModels = @($manifest.files | ForEach-Object { $_.path.Replace("\", "/") } | Sort-Object)
+          $modelsRoot = Join-Path $bundledManifest[0].DirectoryName "models"
+          $bundledModels = @(Get-ChildItem $modelsRoot -Recurse -File | ForEach-Object {
+            [IO.Path]::GetRelativePath($modelsRoot, $_.FullName).Replace("\", "/")
+          } | Sort-Object)
+          $modelDifference = @(Compare-Object $manifestModels $bundledModels)
+          if ($modelDifference) {
+            throw "Unexpected OCR models found in Windows worker: $($modelDifference.InputObject -join ', ')"
+          }
+
+          $forbiddenPpocrv6 = @(Get-ChildItem $worker -Recurse -File | Where-Object {
+            $_.Name -match "PP-OCRv6"
+          })
+          if ($forbiddenPpocrv6) {
+            throw "PP-OCRv6 must not be included in Windows worker: $($forbiddenPpocrv6.FullName -join ', ')"
+          }
+
       - name: Publish Windows Lite app
         shell: pwsh
         run: dotnet publish windows/MDify.Windows/MDify.Windows.csproj -c Release -r win-x64 --self-contained true -p:MDifyVariant=Lite -o dist/windows/lite/app

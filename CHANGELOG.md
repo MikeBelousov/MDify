@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Automatic OCR now starts with Eslavic PP-OCRv5 and accepts Latin rescues only
+  when strict confidence, quality, and text-similarity guards all pass.
+- Removed PP-OCRv6 model files from OCR release bundles and added exact manifest
+  checks for macOS and Windows artifacts.
+- Fixed the retained PP-OCRv6 adapter's PIL RGB and NumPy BGR input contract.
+
 ## v0.4.2 - 2026-06-22
 
 - Made the macOS conversion action clearer with a prominent dark Convert button.

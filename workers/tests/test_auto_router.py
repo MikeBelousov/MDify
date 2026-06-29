@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from workers.ocr import auto_router
 from workers.ocr.auto_router import AutoOCRRouter
 from workers.ocr.line_recognition import RapidOCRLineRecognizer
 from workers.ocr.ocr_types import DetectedLine, OCRCandidate, SelectedOCRLine
@@ -35,165 +36,170 @@ class FakeRecognizer:
         ]
 
 
-def test_auto_accepts_strong_eslav_without_fallbacks() -> None:
+def test_strong_eslav_does_not_construct_latin() -> None:
     line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Отчёт", 0.92)})
-    latin = FakeRecognizer("latin", {0: ("Otchet", 0.92)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("Отчёт", 0.95)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
+    eslav = FakeRecognizer("eslav", {0: ("Revenue", 0.92)})
 
-    result = router.recognize([line])
+    def fail_latin() -> FakeRecognizer:
+        raise AssertionError("strong Eslavic result must not construct Latin")
+
+    result = AutoOCRRouter(eslav=eslav, latin=fail_latin).recognize([line])
+
+    assert result.lines[0].text == "Revenue"
+    assert result.latin_retry_count == 0
+    assert result.latin_accept_count == 0
+    assert result.ppocrv6_retry_count == 0
+
+
+def test_weak_cyrillic_eslav_does_not_run_latin() -> None:
+    line = make_line(0)
+    eslav = FakeRecognizer("eslav", {0: ("Отчёт", 0.20)})
+    latin = FakeRecognizer("latin", {0: ("Report", 0.99)})
+
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
 
     assert result.lines[0].text == "Отчёт"
-    assert eslav.calls == [[line]]
     assert latin.calls == []
-    assert ppocrv6.calls == []
 
 
-def test_auto_does_not_construct_unused_fallback_recognizers() -> None:
+def test_digits_and_punctuation_do_not_run_latin() -> None:
     line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Отчёт", 0.92)})
-    constructed: list[str] = []
+    eslav = FakeRecognizer("eslav", {0: ("2026: 42.5%", 0.20)})
+    latin = FakeRecognizer("latin", {0: ("2026: 425%", 0.99)})
 
-    def unused(name: str):
-        def build():
-            constructed.append(name)
-            return FakeRecognizer(name, {0: ("unused", 0.99)})
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
 
-        return build
-
-    result = AutoOCRRouter(
-        eslav=lambda: eslav,
-        latin=unused("latin"),
-        ppocrv6=unused("ppocrv6"),
-    ).recognize([line])
-
-    assert result.lines[0].text == "Отчёт"
-    assert constructed == []
+    assert result.lines[0].text == "2026: 42.5%"
+    assert latin.calls == []
 
 
-def test_auto_retries_weak_eslav_with_latin() -> None:
+def test_weak_english_eslav_runs_and_accepts_latin() -> None:
     line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Revenue", 0.74)})
-    latin = FakeRecognizer("latin", {0: ("Revenue", 0.94)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("Revenue", 0.95)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
+    eslav = FakeRecognizer("eslav", {0: ("Revenve", 0.49)})
+    latin = FakeRecognizer("latin", {0: ("Revenue", 0.95)})
 
-    result = router.recognize([line])
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
+
+    assert latin.calls == [[line]]
+    assert result.lines[0].text == "Revenue"
+    assert result.lines[0].model == "latin"
+    assert result.latin_retry_count == 1
+    assert result.latin_accept_count == 1
+
+
+def test_latin_below_accept_confidence_is_rejected() -> None:
+    line = make_line(0)
+    eslav = FakeRecognizer("eslav", {0: ("Revenve", 0.40)})
+    latin = FakeRecognizer("latin", {0: ("Revenue", 0.89)})
+
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
+
+    assert result.lines[0].text == "Revenve"
+    assert result.latin_retry_count == 1
+    assert result.latin_accept_count == 0
+
+
+def test_latin_without_minimum_quality_gain_is_rejected() -> None:
+    line = make_line(0)
+    eslav = FakeRecognizer("eslav", {0: ("Revenuuuu", 0.95)})
+    latin = FakeRecognizer("latin", {0: ("Revenue", 0.99)})
+
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
+
+    assert latin.calls == [[line]]
+    assert result.lines[0].text == "Revenuuuu"
+    assert result.latin_accept_count == 0
+
+
+def test_dissimilar_latin_rewrite_is_rejected() -> None:
+    line = make_line(0)
+    eslav = FakeRecognizer("eslav", {0: ("Revenve", 0.30)})
+    latin = FakeRecognizer("latin", {0: ("Invoice", 0.99)})
+
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
+
+    assert result.lines[0].text == "Revenve"
+    assert result.latin_accept_count == 0
+
+
+def test_short_nonempty_eslav_is_never_replaced() -> None:
+    line = make_line(0)
+    eslav = FakeRecognizer("eslav", {0: ("Tota", 0.30)})
+    latin = FakeRecognizer("latin", {0: ("Total", 0.99)})
+
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
+
+    assert latin.calls == [[line]]
+    assert result.lines[0].text == "Tota"
+    assert result.latin_accept_count == 0
+
+
+def test_empty_eslav_accepts_clean_latin_at_threshold() -> None:
+    line = make_line(0)
+    eslav = FakeRecognizer("eslav", {0: ("", 0.99)})
+    latin = FakeRecognizer("latin", {0: ("Revenue", 0.85)})
+
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
 
     assert result.lines[0].text == "Revenue"
     assert result.lines[0].model == "latin"
-    assert latin.calls == [[line]]
-    assert ppocrv6.calls == []
+    assert result.latin_retry_count == 1
+    assert result.latin_accept_count == 1
 
 
-def test_close_candidates_prefer_eslav_when_eslav_text_contains_cyrillic() -> None:
+def test_empty_eslav_rejects_latin_below_threshold() -> None:
     line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Отчёт", 0.73)})
-    latin = FakeRecognizer("latin", {0: ("Отчет", 0.96)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("Отчет", 0.75)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
+    eslav = FakeRecognizer("eslav", {0: ("", 0.99)})
+    latin = FakeRecognizer("latin", {0: ("Revenue", 0.849)})
 
-    result = router.recognize([line])
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize([line])
 
+    assert result.lines[0].text == ""
     assert result.lines[0].model == "eslav"
-    assert result.lines[0].text == "Отчёт"
+    assert result.latin_accept_count == 0
 
 
-def test_close_candidates_prefer_latin_for_latin_only_text_and_run_ppocrv6() -> None:
-    line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Revenve", 0.73)})
-    latin = FakeRecognizer("latin", {0: ("Revenue", 0.76)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("Revenue", 0.78)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
-
-    result = router.recognize([line])
-
-    assert result.lines[0].model == "latin"
-    assert ppocrv6.calls == [[line]]
+def test_normalized_similarity_ignores_case_and_whitespace() -> None:
+    assert auto_router._normalized_similarity(
+        " Revenue\n report ",
+        "revenue report",
+    ) == 1.0
 
 
-def test_close_digits_and_punctuation_candidates_use_confidence() -> None:
-    line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("2026: 42.5%", 0.74)})
-    latin = FakeRecognizer("latin", {0: ("2026: 42,5%", 0.76)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("2026: 42.5%", 0.78)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
-
-    result = router.recognize([line])
-
-    assert result.lines[0].model == "latin"
-    assert result.lines[0].text == "2026: 42,5%"
-    assert ppocrv6.calls == [[line]]
-
-
-def test_quality_difference_above_tie_margin_selects_higher_score() -> None:
-    line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Отчёт", 0.70)})
-    latin = FakeRecognizer("latin", {0: ("Revenue", 0.74)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("Отчёт", 0.75)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
-
-    result = router.recognize([line])
-
-    assert result.lines[0].model == "latin"
-
-
-def test_auto_retries_only_remaining_ambiguous_lines_with_ppocrv6() -> None:
-    good_line = make_line(0)
-    ambiguous_line = make_line(1, top=50)
+def test_auto_preserves_input_order_and_counts_only_rescued_lines() -> None:
+    lines = [make_line(0), make_line(1, top=50)]
     eslav = FakeRecognizer(
         "eslav",
-        {0: ("Отчёт", 0.90), 1: ("Pасходы", 0.65)},
+        {0: ("Revenue", 0.95), 1: ("Revenve", 0.30)},
     )
-    latin = FakeRecognizer("latin", {1: ("Pасходы", 0.68)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {1: ("Расходы", 0.93)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
+    latin = FakeRecognizer("latin", {1: ("Revenue", 0.99)})
 
-    result = router.recognize([good_line, ambiguous_line])
+    result = AutoOCRRouter(eslav=eslav, latin=latin).recognize(lines)
 
-    assert latin.calls == [[ambiguous_line]]
-    assert ppocrv6.calls == [[ambiguous_line]]
-    assert [line.text for line in result.lines] == ["Отчёт", "Расходы"]
+    assert [item.index for item in result.lines] == [0, 1]
+    assert [item.text for item in result.lines] == ["Revenue", "Revenue"]
+    assert latin.calls == [[lines[1]]]
     assert result.latin_retry_count == 1
-    assert result.ppocrv6_retry_count == 1
+    assert result.latin_accept_count == 1
 
 
-def test_ppocrv6_must_improve_score_by_tie_margin() -> None:
-    line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Revenve", 0.60)})
-    latin = FakeRecognizer("latin", {0: ("Revenue", 0.70)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("Revenuе", 0.72)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
+def test_empty_input_does_not_load_recognizers() -> None:
+    def fail() -> FakeRecognizer:
+        raise AssertionError("empty input must not construct recognizers")
 
-    result = router.recognize([line])
-
-    assert result.lines[0].model == "latin"
-
-
-def test_ppocrv6_is_selected_at_exact_improvement_margin() -> None:
-    line = make_line(0)
-    eslav = FakeRecognizer("eslav", {0: ("Revenve", 0.60)})
-    latin = FakeRecognizer("latin", {0: ("Revenue", 0.70)})
-    ppocrv6 = FakeRecognizer("ppocrv6", {0: ("Revenue!", 0.73)})
-    router = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6)
-
-    result = router.recognize([line])
-
-    assert result.lines[0].model == "ppocrv6"
-
-
-def test_empty_input_does_not_load_or_call_recognizers() -> None:
-    eslav = FakeRecognizer("eslav", {})
-    latin = FakeRecognizer("latin", {})
-    ppocrv6 = FakeRecognizer("ppocrv6", {})
-
-    result = AutoOCRRouter(eslav=eslav, latin=latin, ppocrv6=ppocrv6).recognize([])
+    result = AutoOCRRouter(eslav=fail, latin=fail).recognize([])
 
     assert result.lines == []
-    assert eslav.calls == []
-    assert latin.calls == []
-    assert ppocrv6.calls == []
+    assert result.latin_retry_count == 0
+    assert result.latin_accept_count == 0
+
+
+def test_auto_result_preserves_legacy_positional_counter_order() -> None:
+    result = auto_router.AutoOCRResult([], 2, 3)
+
+    assert result.latin_retry_count == 2
+    assert result.ppocrv6_retry_count == 3
+    assert result.latin_accept_count == 0
 
 
 def test_reading_order_accepts_selected_lines_and_preserves_blank_gaps() -> None:
@@ -227,7 +233,7 @@ def test_reading_order_drops_low_quality_punctuation_only_hallucination() -> Non
             OCRCandidate(make_line(0), "Revenue", 0.95, "latin")
         ),
         SelectedOCRLine.from_candidate(
-            OCRCandidate(make_line(1, top=50), "−", 0.45, "ppocrv6")
+            OCRCandidate(make_line(1, top=50), "−", 0.45, "eslav")
         ),
     ]
 

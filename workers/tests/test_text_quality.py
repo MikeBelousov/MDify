@@ -5,6 +5,12 @@ import pytest
 from workers.ocr.text_quality import (
     AUTO_CONFIDENCE_THRESHOLD,
     CANDIDATE_TIE_MARGIN,
+    EMPTY_ESLAV_ACCEPT_CONFIDENCE,
+    LATIN_ACCEPT_CONFIDENCE,
+    LATIN_MIN_QUALITY_GAIN,
+    LATIN_MIN_SIMILARITY,
+    LATIN_MIN_SOURCE_LENGTH,
+    LATIN_TRIGGER_CONFIDENCE,
     MIN_ACCEPTABLE_QUALITY,
     score_candidate,
 )
@@ -14,6 +20,12 @@ def test_exports_stable_auto_routing_thresholds() -> None:
     assert AUTO_CONFIDENCE_THRESHOLD == 0.75
     assert MIN_ACCEPTABLE_QUALITY == 0.70
     assert CANDIDATE_TIE_MARGIN == 0.03
+    assert LATIN_TRIGGER_CONFIDENCE == 0.50
+    assert LATIN_ACCEPT_CONFIDENCE == 0.90
+    assert EMPTY_ESLAV_ACCEPT_CONFIDENCE == 0.85
+    assert LATIN_MIN_QUALITY_GAIN == 0.20
+    assert LATIN_MIN_SIMILARITY == 0.70
+    assert LATIN_MIN_SOURCE_LENGTH == 5
 
 
 def test_clean_cyrillic_candidate_is_not_suspicious() -> None:

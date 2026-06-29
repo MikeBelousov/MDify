@@ -115,14 +115,12 @@ def test_model_registry_builds_each_model_at_most_once() -> None:
         detector_factory=factory("detector"),
         eslav_factory=factory("eslav"),
         latin_factory=factory("latin"),
-        ppocrv6_factory=factory("ppocrv6"),
     )
 
     assert registry.detector() is registry.detector()
     assert registry.eslav() is registry.eslav()
     assert registry.latin() is registry.latin()
-    assert registry.ppocrv6() is registry.ppocrv6()
-    assert calls == {"detector": 1, "eslav": 1, "latin": 1, "ppocrv6": 1}
+    assert calls == {"detector": 1, "eslav": 1, "latin": 1}
 
 
 def test_stage_builders_do_not_initialize_unneeded_models(

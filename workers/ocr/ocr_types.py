@@ -60,6 +60,7 @@ class OCRMarkdownResult:
     line_count: int = 0
     latin_retry_count: int = 0
     ppocrv6_retry_count: int = 0
+    latin_accept_count: int = 0
 
     def warnings(self, mode: str) -> list[str]:
         warnings = [f"Smart OCR mode: {mode}."]
@@ -70,10 +71,8 @@ class OCRMarkdownResult:
                         f"Retried {self.latin_retry_count} of {self.line_count} "
                         "lines with latin."
                     ),
-                    (
-                        f"Retried {self.ppocrv6_retry_count} of {self.line_count} "
-                        "lines with PP-OCRv6."
-                    ),
+                    f"Accepted {self.latin_accept_count} latin replacement"
+                    + ("." if self.latin_accept_count == 1 else "s."),
                 ]
             )
         return warnings
