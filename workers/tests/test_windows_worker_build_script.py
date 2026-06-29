@@ -23,3 +23,13 @@ def test_windows_worker_build_script_declares_expected_contract() -> None:
     assert "PIL" in text
     assert "workers/ocr/model_manifest.json" in text
     assert "workers/ocr/models" in text
+
+
+def test_windows_release_rejects_models_outside_manifest() -> None:
+    workflow = Path(".github/workflows/windows-build.yml").read_text(encoding="utf-8")
+
+    assert "$manifestModels" in workflow
+    assert "$manifest.files" in workflow
+    assert "$bundledModels" in workflow
+    assert "Unexpected OCR models found in Windows worker" in workflow
+    assert "PP-OCRv6" in workflow

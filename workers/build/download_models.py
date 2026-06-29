@@ -85,6 +85,19 @@ def ensure_file(entry: dict, *, download_missing: bool) -> bool:
     return True
 
 
+def verify_model_file_set(entries: list[dict]) -> bool:
+    expected = {entry["path"] for entry in entries}
+    actual = {
+        path.relative_to(MODELS_DIR).as_posix()
+        for path in MODELS_DIR.rglob("*")
+        if path.is_file()
+    }
+    extra = sorted(actual - expected)
+    for path in extra:
+        print(f"unlisted OCR model: {path}", file=sys.stderr)
+    return not extra
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--verify-only", action="store_true")
@@ -94,6 +107,7 @@ def main() -> int:
     ok = True
     for entry in manifest["files"]:
         ok = ensure_file(entry, download_missing=not args.verify_only) and ok
+    ok = verify_model_file_set(manifest["files"]) and ok
     return 0 if ok else 1
 
 

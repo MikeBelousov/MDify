@@ -37,30 +37,6 @@ class RapidOCRLineRecognizer:
         ]
 
 
-class PPOCRV6LineRecognizer:
-    def __init__(self, recognizer: Any) -> None:
-        self._recognizer = recognizer
-
-    def recognize(self, lines: list[DetectedLine]) -> list[OCRCandidate]:
-        if not lines:
-            return []
-
-        outputs = self._recognizer.recognize([line.crop for line in lines])
-        if len(outputs) != len(lines):
-            raise OCRRecognitionError(
-                "ppocrv6 returned a different result count than the input lines"
-            )
-        return [
-            OCRCandidate(
-                line=line,
-                text=str(text),
-                confidence=float(score),
-                model="ppocrv6",
-            )
-            for line, (text, score) in zip(lines, outputs, strict=True)
-        ]
-
-
 def _required_sequence(output: Any, name: str) -> Sequence[Any]:
     value = getattr(output, name, None)
     if value is None:
@@ -78,4 +54,3 @@ def _validate_output_count(
         raise OCRRecognitionError(
             f"{model} returned a different result count than the input lines"
         )
-

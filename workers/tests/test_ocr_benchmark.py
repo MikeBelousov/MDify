@@ -127,7 +127,7 @@ def test_smart_ocr_meets_quality_gate() -> None:
                 ),
                 "line_count": smart.line_count,
                 "latin_retry_count": smart.latin_retry_count,
-                "ppocrv6_retry_count": smart.ppocrv6_retry_count,
+                "latin_accept_count": smart.latin_accept_count,
                 "elapsed_seconds": elapsed_seconds,
             }
         )
@@ -145,7 +145,7 @@ def test_smart_ocr_meets_quality_gate() -> None:
     assert smart["exact_line_accuracy"] >= baseline["exact_line_accuracy"]
     assert smart["character_error_rate"] <= baseline["character_error_rate"]
     assert 0.0 <= smart["latin_retry_ratio"] <= 1.0
-    assert 0.0 <= smart["ppocrv6_retry_ratio"] <= 1.0
+    assert 0.0 <= smart["latin_accept_ratio"] <= smart["latin_retry_ratio"]
     assert smart["average_seconds_per_fixture"] > 0
     baseline_mixed = next(
         result
@@ -171,15 +171,15 @@ def summarize_results(results: list[dict]) -> dict:
         / len(results),
         "total_lines": total_lines,
         "latin_retry_count": sum(item.get("latin_retry_count", 0) for item in results),
-        "ppocrv6_retry_count": sum(
-            item.get("ppocrv6_retry_count", 0) for item in results
+        "latin_accept_count": sum(
+            item.get("latin_accept_count", 0) for item in results
         ),
         "latin_retry_ratio": sum(
             item.get("latin_retry_count", 0) for item in results
         )
         / max(1, total_lines),
-        "ppocrv6_retry_ratio": sum(
-            item.get("ppocrv6_retry_count", 0) for item in results
+        "latin_accept_ratio": sum(
+            item.get("latin_accept_count", 0) for item in results
         )
         / max(1, total_lines),
         "average_seconds_per_fixture": sum(

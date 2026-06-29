@@ -14,12 +14,10 @@ from workers.ocr.language_mode import OCRLanguageMode, parse_language_mode
 from workers.ocr.line_detection import LineDetector
 from workers.ocr.line_recognition import (
     LineRecognizer,
-    PPOCRV6LineRecognizer,
     RapidOCRLineRecognizer,
 )
 from workers.ocr.model_registry import OCRModelRegistry
 from workers.ocr.ocr_types import DetectedLine, OCRMarkdownResult, SelectedOCRLine
-from workers.ocr.ppocrv6_adapter import PPOCRV6Recognizer
 from workers.ocr.reading_order import markdown_from_selected_lines
 
 
@@ -60,14 +58,6 @@ class OCRModelSet:
         return self.latin_rec_model
 
     @property
-    def ppocrv6_recognizer(self) -> Path:
-        return self.root / "rec" / "PP-OCRv6_medium_rec.onnx"
-
-    @property
-    def ppocrv6_dictionary(self) -> Path:
-        return self.root / "dict" / "PP-OCRv6_medium_rec.txt"
-
-    @property
     def font(self) -> Path:
         return self.root / "fonts" / "cyrillic.ttf"
 
@@ -78,8 +68,6 @@ class OCRModelSet:
             self.cls_model,
             self.eslav_rec_model,
             self.latin_rec_model,
-            self.ppocrv6_recognizer,
-            self.ppocrv6_dictionary,
             self.font,
         )
 
@@ -101,7 +89,7 @@ class OCRModelSet:
             return common + (self.eslav_recognizer,)
         if language_mode is OCRLanguageMode.LATIN:
             return common + (self.latin_recognizer,)
-        return self.required_models
+        return common + (self.eslav_recognizer, self.latin_recognizer)
 
     def missing_files(
         self,
@@ -198,9 +186,6 @@ def _registry_for_root(root: Path) -> OCRModelRegistry:
         detector_factory=lambda: build_line_detector(models),
         eslav_factory=lambda: build_line_recognizer(models, OCRLanguageMode.CYRILLIC),
         latin_factory=lambda: build_line_recognizer(models, OCRLanguageMode.LATIN),
-        ppocrv6_factory=lambda: PPOCRV6LineRecognizer(
-            PPOCRV6Recognizer(models.ppocrv6_recognizer, models.ppocrv6_dictionary)
-        ),
     )
 
 
@@ -223,6 +208,7 @@ def ocr_image_to_markdown(
         markdown=markdown_from_selected_lines(recognized.lines),
         line_count=len(lines),
         latin_retry_count=recognized.latin_retry_count,
+        latin_accept_count=recognized.latin_accept_count,
         ppocrv6_retry_count=recognized.ppocrv6_retry_count,
     )
 
@@ -236,7 +222,6 @@ def recognize_lines(
         return AutoOCRRouter(
             eslav=registry.eslav,
             latin=registry.latin,
-            ppocrv6=registry.ppocrv6,
         ).recognize(lines)
 
     recognizer: LineRecognizer = (
@@ -251,5 +236,6 @@ def recognize_lines(
     return AutoOCRResult(
         lines=selected,
         latin_retry_count=0,
+        latin_accept_count=0,
         ppocrv6_retry_count=0,
     )

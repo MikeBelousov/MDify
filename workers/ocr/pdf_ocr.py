@@ -22,6 +22,7 @@ def ocr_pdf_to_markdown(
     parts: list[str] = []
     line_count = 0
     latin_retry_count = 0
+    latin_accept_count = 0
     ppocrv6_retry_count = 0
 
     with tempfile.TemporaryDirectory(prefix="mdify-ocr-pages-") as temp_dir:
@@ -35,6 +36,7 @@ def ocr_pdf_to_markdown(
             page_result = ocr_image_to_markdown(prepared_path, models_dir, lang)
             line_count += page_result.line_count
             latin_retry_count += page_result.latin_retry_count
+            latin_accept_count += page_result.latin_accept_count
             ppocrv6_retry_count += page_result.ppocrv6_retry_count
             if page_result.markdown.strip():
                 parts.append(
@@ -45,5 +47,6 @@ def ocr_pdf_to_markdown(
         markdown=normalize_markdown("\n\n".join(parts)),
         line_count=line_count,
         latin_retry_count=latin_retry_count,
+        latin_accept_count=latin_accept_count,
         ppocrv6_retry_count=ppocrv6_retry_count,
     )

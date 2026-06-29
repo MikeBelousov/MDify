@@ -74,6 +74,20 @@ def test_verifier_rejects_ocr_bundle_with_missing_manifest_model(tmp_path: Path)
     assert "missing model" in result.stderr.lower()
 
 
+def test_verifier_rejects_ocr_bundle_with_unlisted_model(tmp_path: Path) -> None:
+    app = _make_bundle(tmp_path, "ocr")
+    extra = app / (
+        "Contents/Resources/Workers/mdify-worker-ocr/_internal/"
+        "workers/ocr/models/rec/PP-OCRv6_medium_rec.onnx"
+    )
+    extra.write_text("stale", encoding="utf-8")
+
+    result = _verify(app, "ocr")
+
+    assert result.returncode != 0
+    assert "unlisted model" in result.stderr.lower()
+
+
 def test_build_scripts_run_release_verifier() -> None:
     for relative_path in ("script/build_release.sh", "script/build_and_run.sh"):
         text = (ROOT / relative_path).read_text(encoding="utf-8")

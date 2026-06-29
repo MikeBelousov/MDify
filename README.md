@@ -66,7 +66,8 @@ MDify.Windows.exe --diagnose-native-ocr "C:\path\sample.png"
 - Add a whole folder from the toolbar, menu, or drag-and-drop.
 - Convert documents, spreadsheets, presentations, web pages, ebooks, and images.
 - Recognize text in images and scanned PDFs.
-- Choose Automatic, Cyrillic, or Latin recognition in OCR versions.
+- Choose Automatic, Cyrillic, or Latin recognition in OCR versions. Automatic
+  starts with Eslavic PP-OCRv5 and uses Latin only for strictly validated rescue.
 - Preserve folder structure when writing Markdown outputs.
 - Preview, copy, and reveal generated Markdown.
 

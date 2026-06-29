@@ -78,14 +78,20 @@ def test_rejects_non_finite_confidence(tmp_path: Path) -> None:
         recognizer.recognize([Image.new("RGB", (80, 24), "white")])
 
 
-def test_prepares_images_in_bgr_channel_order(tmp_path: Path) -> None:
-    session = FakeSession(logits_for([1, 0, 0, 0]))
+def test_prepares_pil_rgb_and_numpy_bgr_as_the_same_bgr_tensor(
+    tmp_path: Path,
+) -> None:
+    session = FakeSession(logits_for([1, 0, 0, 0], [1, 0, 0, 0]))
     recognizer = PPOCRV6Recognizer.from_session(session, write_dictionary(tmp_path))
+    pil_rgb = Image.new("RGB", (1, 1), (30, 20, 10))
+    numpy_bgr = np.array([[[10, 20, 30]]], dtype=np.uint8)
 
-    recognizer.recognize([Image.new("RGB", (1, 1), (255, 0, 0))])
+    recognizer.recognize([pil_rgb, numpy_bgr])
 
-    first_pixel = session.feeds[0]["images"][0, :, 0, 0]
-    assert first_pixel.tolist() == [-1.0, -1.0, 1.0]
+    pixels = session.feeds[0]["images"][:, :, 0, 0]
+    expected_bgr = np.array([10, 20, 30], dtype=np.float32) / 127.5 - 1.0
+    assert pixels[0] == pytest.approx(expected_bgr)
+    assert pixels[1] == pytest.approx(expected_bgr)
 
 
 def test_preserves_probability_confidence(tmp_path: Path) -> None:

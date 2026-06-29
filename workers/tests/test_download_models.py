@@ -77,3 +77,33 @@ def test_missing_git_lfs_model_does_not_download_source_url(tmp_path, monkeypatc
         "missing Git LFS OCR model: rec/PP-OCRv6_medium_rec.onnx; run git lfs pull"
         in captured.err
     )
+
+
+def test_verify_model_file_set_rejects_unlisted_model(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    listed = tmp_path / "rec/eslav.onnx"
+    listed.parent.mkdir(parents=True)
+    listed.write_bytes(b"listed")
+    (tmp_path / "rec/PP-OCRv6_medium_rec.onnx").write_bytes(b"stale")
+    monkeypatch.setattr(download_models, "MODELS_DIR", tmp_path)
+
+    result = download_models.verify_model_file_set(
+        [{"path": "rec/eslav.onnx"}]
+    )
+
+    assert result is False
+    assert "unlisted OCR model" in capsys.readouterr().err
+
+
+def test_verify_model_file_set_accepts_exact_manifest(tmp_path, monkeypatch):
+    listed = tmp_path / "rec/eslav.onnx"
+    listed.parent.mkdir(parents=True)
+    listed.write_bytes(b"listed")
+    monkeypatch.setattr(download_models, "MODELS_DIR", tmp_path)
+
+    assert download_models.verify_model_file_set(
+        [{"path": "rec/eslav.onnx"}]
+    )

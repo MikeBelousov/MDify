@@ -75,7 +75,12 @@ def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatc
         language_mode: OCRLanguageMode,
     ) -> OCRMarkdownResult:
         captured.append(language_mode)
-        return OCRMarkdownResult("# Text\n", line_count=2, latin_retry_count=1)
+        return OCRMarkdownResult(
+            "# Text\n",
+            line_count=2,
+            latin_retry_count=1,
+            latin_accept_count=1,
+        )
 
     monkeypatch.setattr(mdify_worker_ocr, "ocr_image_file_to_markdown", fake_ocr)
 
@@ -99,8 +104,16 @@ def test_auto_language_reaches_image_ocr_boundary(monkeypatch: pytest.MonkeyPatc
     assert result.warnings == [
         "Smart OCR mode: auto.",
         "Retried 1 of 2 lines with latin.",
-        "Retried 0 of 2 lines with PP-OCRv6.",
+        "Accepted 1 latin replacement.",
     ]
+
+
+def test_ocr_markdown_result_preserves_legacy_positional_counter_order() -> None:
+    result = OCRMarkdownResult("text", 10, 2, 3)
+
+    assert result.latin_retry_count == 2
+    assert result.ppocrv6_retry_count == 3
+    assert result.latin_accept_count == 0
 
 
 class FakeLineDetector:
@@ -133,12 +146,10 @@ class FakeModelRegistry:
         detector: FakeLineDetector,
         eslav: FakeLineRecognizer,
         latin: FakeLineRecognizer,
-        ppocrv6: FakeLineRecognizer,
     ) -> None:
         self._detector = detector
         self._eslav = eslav
         self._latin = latin
-        self._ppocrv6 = ppocrv6
         self.loads: list[str] = []
 
     def detector(self):
@@ -152,11 +163,6 @@ class FakeModelRegistry:
     def latin(self):
         self.loads.append("latin")
         return self._latin
-
-    def ppocrv6(self):
-        self.loads.append("ppocrv6")
-        return self._ppocrv6
-
 
 def fake_line(index: int = 0) -> DetectedLine:
     return DetectedLine(
@@ -174,16 +180,15 @@ def patch_fake_registry(
     monkeypatch.setattr(OCRModelSet, "missing_files", lambda _self, _lang=None: [])
 
 
-def test_auto_pipeline_loads_only_needed_recognizers(
+def test_auto_pipeline_loads_latin_only_for_conservative_rescue(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     line = fake_line()
     registry = FakeModelRegistry(
         FakeLineDetector([line]),
-        FakeLineRecognizer("eslav", {0: ("Отчёт", 0.94)}),
-        FakeLineRecognizer("latin", {0: ("Otchet", 0.95)}),
-        FakeLineRecognizer("ppocrv6", {0: ("Отчёт", 0.96)}),
+        FakeLineRecognizer("eslav", {0: ("Revenve", 0.30)}),
+        FakeLineRecognizer("latin", {0: ("Revenue", 0.99)}),
     )
     patch_fake_registry(monkeypatch, registry)
 
@@ -193,8 +198,11 @@ def test_auto_pipeline_loads_only_needed_recognizers(
         OCRLanguageMode.AUTO,
     )
 
-    assert result.markdown == "Отчёт"
-    assert registry.loads == ["detector", "eslav"]
+    assert result.markdown == "Revenue"
+    assert registry.loads == ["detector", "eslav", "latin"]
+    assert result.latin_retry_count == 1
+    assert result.latin_accept_count == 1
+    assert result.ppocrv6_retry_count == 0
 
 
 @pytest.mark.parametrize(
@@ -215,7 +223,6 @@ def test_manual_pipeline_loads_only_selected_recognizer(
         FakeLineDetector([line]),
         FakeLineRecognizer("eslav", {0: ("Отчёт", 0.94)}),
         FakeLineRecognizer("latin", {0: ("Revenue", 0.95)}),
-        FakeLineRecognizer("ppocrv6", {0: ("Unused", 0.96)}),
     )
     patch_fake_registry(monkeypatch, registry)
 
@@ -235,7 +242,6 @@ def test_pdf_pipeline_runs_detector_once_per_page(
         detector,
         FakeLineRecognizer("eslav", {0: ("Страница", 0.95)}),
         latin,
-        FakeLineRecognizer("ppocrv6", {0: ("Page", 0.96)}),
     )
     patch_fake_registry(monkeypatch, registry)
 
@@ -277,15 +283,24 @@ def test_ocr_model_set_exposes_all_required_ppocrv5_models(tmp_path: Path) -> No
     assert models.classifier.name == "ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx"
     assert models.eslav_recognizer.name == "eslav_PP-OCRv5_rec_mobile.onnx"
     assert models.latin_recognizer.name == "latin_PP-OCRv5_rec_mobile.onnx"
-    assert models.ppocrv6_recognizer.name == "PP-OCRv6_medium_rec.onnx"
     assert models.required_models == (
         tmp_path / "det/ch_PP-OCRv5_det_server.onnx",
         tmp_path / "cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx",
         tmp_path / "rec/eslav_PP-OCRv5_rec_mobile.onnx",
         tmp_path / "rec/latin_PP-OCRv5_rec_mobile.onnx",
-        tmp_path / "rec/PP-OCRv6_medium_rec.onnx",
-        tmp_path / "dict/PP-OCRv6_medium_rec.txt",
         tmp_path / "fonts/cyrillic.ttf",
+    )
+
+
+def test_auto_requires_only_common_eslav_and_latin_models(tmp_path: Path) -> None:
+    models = OCRModelSet(tmp_path)
+
+    assert models.required_models_for(OCRLanguageMode.AUTO) == (
+        tmp_path / "det/ch_PP-OCRv5_det_server.onnx",
+        tmp_path / "cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx",
+        tmp_path / "fonts/cyrillic.ttf",
+        tmp_path / "rec/eslav_PP-OCRv5_rec_mobile.onnx",
+        tmp_path / "rec/latin_PP-OCRv5_rec_mobile.onnx",
     )
 
 
@@ -351,7 +366,7 @@ def test_build_engine_configures_ppocrv5_models(
     assert captured["Rec.model_path"] == str(tmp_path / "rec" / rec_filename)
 
 
-def test_model_manifest_uses_ppocrv5_models_and_preserves_ppocrv6() -> None:
+def test_model_manifest_contains_only_runtime_ppocrv5_models() -> None:
     manifest_path = Path(__file__).resolve().parents[1] / "ocr/model_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     entries = {entry["path"]: entry for entry in manifest["files"]}
@@ -378,12 +393,13 @@ def test_model_manifest_uses_ppocrv5_models_and_preserves_ppocrv6() -> None:
         assert entries[path]["url"] == url
         assert entries[path]["sha256"] == sha256
 
-    assert {
-        "det/multi_PP-OCRv3_det_mobile.onnx",
-        "cls/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
-        "rec/cyrillic_PP-OCRv5_rec_mobile.onnx",
-    }.isdisjoint(entries)
-    assert entries["rec/PP-OCRv6_medium_rec.onnx"]["distribution"] == "git-lfs"
+    assert set(entries) == {
+        "det/ch_PP-OCRv5_det_server.onnx",
+        "cls/ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx",
+        "rec/eslav_PP-OCRv5_rec_mobile.onnx",
+        "rec/latin_PP-OCRv5_rec_mobile.onnx",
+        "fonts/cyrillic.ttf",
+    }
 
 
 def test_ocr_worker_reports_missing_models_for_image(tmp_path: Path) -> None:

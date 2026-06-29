@@ -2,18 +2,39 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import re
 import unicodedata
 
 from workers.ocr.line_recognition import LineRecognizer, OCRRecognitionError
 from workers.ocr.ocr_types import DetectedLine, OCRCandidate, SelectedOCRLine
-from workers.ocr.text_quality import CANDIDATE_TIE_MARGIN
+from workers.ocr.text_quality import (
+    EMPTY_ESLAV_ACCEPT_CONFIDENCE,
+    LATIN_ACCEPT_CONFIDENCE,
+    LATIN_MIN_QUALITY_GAIN,
+    LATIN_MIN_SIMILARITY,
+    LATIN_MIN_SOURCE_LENGTH,
+    LATIN_TRIGGER_CONFIDENCE,
+)
+
+
+_SEVERE_ESLAV_REASONS = frozenset({"replacement-or-control", "repetition"})
+_STRUCTURAL_REJECTION_REASONS = frozenset(
+    {
+        "empty-text",
+        "mixed-confusable-token",
+        "unsupported-script",
+        "replacement-or-control",
+        "repetition",
+    }
+)
 
 
 @dataclass(frozen=True)
 class AutoOCRResult:
     lines: list[SelectedOCRLine]
-    latin_retry_count: int
-    ppocrv6_retry_count: int
+    latin_retry_count: int = 0
+    ppocrv6_retry_count: int = 0
+    latin_accept_count: int = 0
 
 
 class AutoOCRRouter:
@@ -22,22 +43,24 @@ class AutoOCRRouter:
         *,
         eslav: LineRecognizer | Callable[[], LineRecognizer],
         latin: LineRecognizer | Callable[[], LineRecognizer],
-        ppocrv6: LineRecognizer | Callable[[], LineRecognizer],
     ) -> None:
         self._eslav = eslav
         self._latin = latin
-        self._ppocrv6 = ppocrv6
 
     def recognize(self, lines: list[DetectedLine]) -> AutoOCRResult:
         if not lines:
-            return AutoOCRResult([], latin_retry_count=0, ppocrv6_retry_count=0)
+            return AutoOCRResult([])
 
-        eslav_recognizer = _resolve(self._eslav)
-        eslav = _candidate_map(lines, eslav_recognizer.recognize(lines), "eslav")
+        eslav = _candidate_map(
+            lines,
+            _resolve(self._eslav).recognize(lines),
+            "eslav",
+        )
         selected = dict(eslav)
-
         latin_lines = [
-            line for line in lines if eslav[line.index].quality.needs_retry
+            line
+            for line in lines
+            if _needs_latin_rescue(eslav[line.index])
         ]
         latin = (
             _candidate_map(
@@ -48,40 +71,21 @@ class AutoOCRRouter:
             if latin_lines
             else {}
         )
-        for line in latin_lines:
-            selected[line.index] = _select_v5_candidate(
-                eslav[line.index],
-                latin[line.index],
-            )
 
-        ppocrv6_lines = [
-            line
-            for line in latin_lines
-            if selected[line.index].quality.needs_retry
-            or _is_clean_close_conflict(eslav[line.index], latin[line.index])
-        ]
-        ppocrv6 = (
-            _candidate_map(
-                ppocrv6_lines,
-                _resolve(self._ppocrv6).recognize(ppocrv6_lines),
-                "ppocrv6",
-            )
-            if ppocrv6_lines
-            else {}
-        )
-        for line in ppocrv6_lines:
-            candidate = ppocrv6[line.index]
-            current = selected[line.index]
-            improvement = (
-                candidate.quality.quality_score - current.quality.quality_score
-            )
-            if improvement >= CANDIDATE_TIE_MARGIN - 1e-12:
-                selected[line.index] = candidate
+        latin_accept_count = 0
+        for line in latin_lines:
+            if _should_accept_latin(eslav[line.index], latin[line.index]):
+                selected[line.index] = latin[line.index]
+                latin_accept_count += 1
 
         return AutoOCRResult(
-            lines=[SelectedOCRLine.from_candidate(selected[line.index]) for line in lines],
+            lines=[
+                SelectedOCRLine.from_candidate(selected[line.index])
+                for line in lines
+            ],
             latin_retry_count=len(latin_lines),
-            ppocrv6_retry_count=len(ppocrv6_lines),
+            latin_accept_count=latin_accept_count,
+            ppocrv6_retry_count=0,
         )
 
 
@@ -107,47 +111,79 @@ def _resolve(
     return source()
 
 
-def _select_v5_candidate(
-    eslav: OCRCandidate,
-    latin: OCRCandidate,
-) -> OCRCandidate:
-    difference = latin.quality.quality_score - eslav.quality.quality_score
-    if abs(difference) > CANDIDATE_TIE_MARGIN + 1e-12:
-        return latin if difference > 0 else eslav
+def _needs_latin_rescue(
+    candidate: OCRCandidate,
+    *,
+    trigger_confidence: float = LATIN_TRIGGER_CONFIDENCE,
+) -> bool:
+    text = candidate.text.strip()
+    if not text:
+        return True
+    if _contains_cyrillic(text) or not _is_latin_only(text):
+        return False
+    return (
+        candidate.confidence < trigger_confidence
+        or bool(_SEVERE_ESLAV_REASONS.intersection(candidate.quality.reasons))
+    )
 
-    if _contains_no_letters(eslav.text) and _contains_no_letters(latin.text):
-        return latin if latin.confidence > eslav.confidence else eslav
-    if _contains_cyrillic(eslav.text) or _contains_cyrillic(latin.text):
-        return eslav
-    if _is_latin_only(eslav.text) and _is_latin_only(latin.text):
-        return latin
-    return latin if difference > 0 else eslav
 
-
-def _is_clean_close_conflict(
+def _should_accept_latin(
     eslav: OCRCandidate,
     latin: OCRCandidate,
 ) -> bool:
-    difference = abs(
-        latin.quality.quality_score - eslav.quality.quality_score
-    )
-    return (
-        difference <= CANDIDATE_TIE_MARGIN + 1e-12
-        and eslav.text != latin.text
-        and _has_clean_text(eslav)
-        and _has_clean_text(latin)
-    )
+    if not _is_latin_only(latin.text):
+        return False
+    if _STRUCTURAL_REJECTION_REASONS.intersection(latin.quality.reasons):
+        return False
+
+    normalized_eslav = _normalize_for_similarity(eslav.text)
+    if not normalized_eslav:
+        return (
+            latin.confidence >= EMPTY_ESLAV_ACCEPT_CONFIDENCE
+            and latin.quality.quality_score >= EMPTY_ESLAV_ACCEPT_CONFIDENCE
+        )
+
+    if len(normalized_eslav) < LATIN_MIN_SOURCE_LENGTH:
+        return False
+    if latin.confidence < LATIN_ACCEPT_CONFIDENCE:
+        return False
+    quality_gain = latin.quality.quality_score - eslav.quality.quality_score
+    if quality_gain + 1e-12 < LATIN_MIN_QUALITY_GAIN:
+        return False
+    return _normalized_similarity(eslav.text, latin.text) >= LATIN_MIN_SIMILARITY
 
 
-def _has_clean_text(candidate: OCRCandidate) -> bool:
-    text_quality_reasons = {
-        "empty-text",
-        "mixed-confusable-token",
-        "unsupported-script",
-        "replacement-or-control",
-        "repetition",
-    }
-    return not text_quality_reasons.intersection(candidate.quality.reasons)
+def _normalized_similarity(left: str, right: str) -> float:
+    normalized_left = _normalize_for_similarity(left)
+    normalized_right = _normalize_for_similarity(right)
+    max_length = max(len(normalized_left), len(normalized_right))
+    if max_length == 0:
+        return 1.0
+    return 1.0 - _edit_distance(normalized_left, normalized_right) / max_length
+
+
+def _normalize_for_similarity(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", text).casefold()
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _edit_distance(left: str, right: str) -> int:
+    if len(left) > len(right):
+        left, right = right, left
+    previous = list(range(len(left) + 1))
+    for right_index, right_character in enumerate(right, start=1):
+        current = [right_index]
+        for left_index, left_character in enumerate(left, start=1):
+            current.append(
+                min(
+                    current[-1] + 1,
+                    previous[left_index] + 1,
+                    previous[left_index - 1]
+                    + (left_character != right_character),
+                )
+            )
+        previous = current
+    return previous[-1]
 
 
 def _contains_cyrillic(text: str) -> bool:
@@ -162,10 +198,4 @@ def _is_latin_only(text: str) -> bool:
     ]
     return bool(letters) and all(
         "LATIN" in unicodedata.name(character, "") for character in letters
-    )
-
-
-def _contains_no_letters(text: str) -> bool:
-    return not any(
-        unicodedata.category(character).startswith("L") for character in text
     )

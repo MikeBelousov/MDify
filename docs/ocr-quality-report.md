@@ -1,4 +1,4 @@
-# Smart OCR Quality Report
+# OCR Quality Report
 
 Measured on the versioned fixture corpus in
 `workers/tests/fixtures/ocr/manifest.json`. The frozen pre-smart baseline comes
@@ -7,9 +7,9 @@ from `workers/tests/fixtures/ocr/pre-smart-baseline.json`.
 Local measurements were captured on macOS 14.6.1 arm64 with Python 3.12 and
 ONNX Runtime CPU inference.
 
-## Quality
+## Frozen historical measurement
 
-| Metric | Pre-smart baseline | Smart OCR |
+| Metric | Pre-smart baseline | Historical Smart OCR |
 | --- | ---: | ---: |
 | Exact-line accuracy | 0.625 | 0.750 |
 | Character error rate | 0.275213 | 0.053385 |
@@ -25,9 +25,24 @@ Release requirements:
 - strong lines must not invoke fallback recognizers;
 - manual Cyrillic and Latin modes must invoke only their selected recognizer.
 
-The final local benchmark passed on June 15, 2026. Mixed Russian/English
+This table describes the previous PP-OCRv6 cascade, not the current release
+candidate. Its final local benchmark passed on June 15, 2026. Mixed Russian/English
 recognition improved from 0.0 to 1.0 exact-line accuracy and from 0.727273 to
 0.0 character error rate.
+
+## Conservative Latin Rescue release gate
+
+The current Auto candidate uses Eslavic PP-OCRv5 first and accepts Latin
+PP-OCRv5 only under strict confidence, quality-gain, script, length, and
+similarity checks. PP-OCRv6 is not loaded or bundled. The staged MDPBench Mini
+RU/EN result must be recorded here only after Canary, Stress, Balanced-20, and
+the manually approved full run pass with zero harmed pages.
+
+The eight-crop RU/EN stage passed locally on June 29, 2026: 0 harmed pages,
+NED 0.984722, CER 0.015278, and peak child RSS 559.7 MiB. All Eslavic results
+were above the trigger threshold, so Latin had 0 attempts and 0 accepted
+replacements. This validates the conservative no-regression path but does not
+yet demonstrate a rescue improvement; Canary and later stages remain pending.
 
 ## Artifact Sizes
 
@@ -44,7 +59,8 @@ recognition improved from 0.0 to 1.0 exact-line accuracy and from 0.727273 to
 
 Automated locally:
 
-- PP-OCRv6 and all manifest models pass SHA-256 verification.
+- Every manifest model passes SHA-256 verification, and extra model files make
+  release verification fail.
 - Smart OCR quality is gated against a frozen pre-smart baseline.
 - macOS Lite contains only the Lite worker and no PaddleOCR models.
 - macOS OCR contains only the OCR worker, its manifest, and every manifest model.

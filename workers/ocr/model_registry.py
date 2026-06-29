@@ -12,13 +12,11 @@ class OCRModelRegistry:
         detector_factory: Callable[[], Any],
         eslav_factory: Callable[[], Any],
         latin_factory: Callable[[], Any],
-        ppocrv6_factory: Callable[[], Any],
     ) -> None:
         self._factories = {
             "detector": detector_factory,
             "eslav": eslav_factory,
             "latin": latin_factory,
-            "ppocrv6": ppocrv6_factory,
         }
         self._instances: dict[str, Any] = {}
         self._lock = RLock()
@@ -32,12 +30,8 @@ class OCRModelRegistry:
     def latin(self) -> Any:
         return self._get("latin")
 
-    def ppocrv6(self) -> Any:
-        return self._get("ppocrv6")
-
     def _get(self, name: str) -> Any:
         with self._lock:
             if name not in self._instances:
                 self._instances[name] = self._factories[name]()
             return self._instances[name]
-
